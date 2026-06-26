@@ -31,6 +31,7 @@ class SettingsRepository @Inject constructor(
         val ELIGIBILITY_MODE = stringPreferencesKey("eligibility_mode")
         val SELECTED = stringSetPreferencesKey("selected_packages")
         val ZEN_RULE_ID = stringPreferencesKey("zen_rule_id")
+        val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map { it.toAppSettings() }
@@ -55,6 +56,9 @@ class SettingsRepository @Inject constructor(
     suspend fun setZenRuleId(id: String?) =
         edit { prefs -> if (id == null) prefs.remove(Keys.ZEN_RULE_ID) else prefs[Keys.ZEN_RULE_ID] = id }
 
+    suspend fun setOnboardingComplete(complete: Boolean) =
+        edit { it[Keys.ONBOARDING_COMPLETE] = complete }
+
     private suspend fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         context.dataStore.edit(block)
     }
@@ -68,5 +72,6 @@ class SettingsRepository @Inject constructor(
             ?: EligibilityMode.ALL_APPS_EXCEPT_SELECTED,
         selectedPackages = this[Keys.SELECTED] ?: emptySet(),
         zenRuleId = this[Keys.ZEN_RULE_ID],
+        onboardingComplete = this[Keys.ONBOARDING_COMPLETE] ?: false,
     )
 }

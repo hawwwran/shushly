@@ -19,6 +19,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -50,6 +51,11 @@ class HomeViewModel @Inject constructor(
     val quietState: StateFlow<QuietModeState> = quietMode.observeState()
 
     val decisionLog: StateFlow<List<DecisionLogEntry>> = pipeline.log
+
+    /** null until the persisted flag is first read, then true/false. Drives the start destination. */
+    val onboardingComplete: StateFlow<Boolean?> = settings.settings
+        .map { it.onboardingComplete }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     var readinessUi by mutableStateOf(ReadinessUi())
         private set
@@ -86,6 +92,10 @@ class HomeViewModel @Inject constructor(
 
     fun setVibrate(enabled: Boolean) {
         viewModelScope.launch { settings.setVibrate(enabled) }
+    }
+
+    fun completeOnboarding() {
+        viewModelScope.launch { settings.setOnboardingComplete(true) }
     }
 
     fun fireTest(alert: Boolean) {

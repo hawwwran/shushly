@@ -11,4 +11,5 @@ data class AppSettings(
     val eligibilityMode: EligibilityMode = EligibilityMode.ALL_APPS_EXCEPT_SELECTED,
     val selectedPackages: Set<String> = emptySet(),
     val zenRuleId: String? = null,
+    val onboardingComplete: Boolean = false,
 )
