@@ -16,10 +16,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** One recent decision, surfaced in the spike UI so the acceptance test is observable. */
+/** One processed notification, surfaced as a lifecycle line in the Home processing log. */
 data class DecisionLogEntry(
     val timeMs: Long,
     val appLabel: String,
@@ -27,12 +28,17 @@ data class DecisionLogEntry(
     val decision: Decision,
     val reasonCode: DecisionReasonCode,
     val userVisibleReason: String?,
+    val aiCalled: Boolean,
     val wasAlertPosted: Boolean,
 )
 
 /**
  * The decision pipeline (spec §7.2): eligibility → protected-source → text → dedupe →
- * classify → threshold → simulation → cooldown → re-alert. Fails safe to silent (§3.4).
+ * classify → threshold → simulation → re-alert. Fails safe to silent (§3.4).
+ *
+ * An important notification (ALERT at/above threshold) sounds immediately, with its own
+ * per-source-notification id, so distinct important notifications each alert. The only audible
+ * rate limit is a global anti-storm backstop (see [DedupeRateLimiter]).
  */
 @Singleton
 class NotificationPipeline @Inject constructor(
@@ -46,6 +52,10 @@ class NotificationPipeline @Inject constructor(
     private val _log = MutableStateFlow<List<DecisionLogEntry>>(emptyList())
     val log: StateFlow<List<DecisionLogEntry>> = _log.asStateFlow()
 
+    // Source notification keys we've posted an alert for, so a source dismissal can cancel our
+    // mirror (spec §5). notifId == sourceKey.hashCode(). Thread-safe set.
+    private val postedSourceKeys = ConcurrentHashMap.newKeySet<String>()
+
     suspend fun process(sbn: StatusBarNotification, appLabel: String) {
         val extracted = extractor.extract(sbn, appLabel) ?: return
         processExtracted(extracted)
@@ -55,7 +65,7 @@ class NotificationPipeline @Inject constructor(
     suspend fun debugFire(triggerText: String) {
         processExtracted(
             ExtractedNotification(
-                notificationKey = "debug-${System.nanoTime()}",
+                notificationKey = "$DEBUG_KEY_PREFIX${System.nanoTime()}",
                 packageName = DEMO_PACKAGE,
                 appLabel = DEMO_LABEL,
                 postedAt = Instant.ofEpochMilli(System.currentTimeMillis()),
@@ -73,27 +83,27 @@ class NotificationPipeline @Inject constructor(
         val s = settings.snapshot()
 
         if (!s.smartQuietModeEnabled) {
-            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_QUIET_MODE_OFF, "Smart Quiet Mode is off", false)
+            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_QUIET_MODE_OFF, "Smart Quiet Mode is off", aiCalled = false, wasAlertPosted = false)
             return
         }
         if (ProtectedSourcePolicy.isProtected(e)) {
-            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_PROTECTED_SOURCE, "Protected source", false)
+            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_PROTECTED_SOURCE, "Protected source", aiCalled = false, wasAlertPosted = false)
             return
         }
         if (e.isGroupSummary && e.body == null) {
-            record(e, Decision.SKIPPED, DecisionReasonCode.SILENT_GROUP_SUMMARY, null, false)
+            record(e, Decision.SKIPPED, DecisionReasonCode.SILENT_GROUP_SUMMARY, null, aiCalled = false, wasAlertPosted = false)
             return
         }
         if (!eligibility.isEligible(e.packageName, s.eligibilityMode, s.selectedPackages)) {
-            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_NOT_ELIGIBLE, null, false)
+            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_NOT_ELIGIBLE, null, aiCalled = false, wasAlertPosted = false)
             return
         }
         if (!extractor.hasUsableText(e)) {
-            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_NO_USABLE_TEXT, null, false)
+            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_NO_USABLE_TEXT, null, aiCalled = false, wasAlertPosted = false)
             return
         }
         if (!dedupe.canCallAi(e.notificationKey)) {
-            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_DUPLICATE, null, false)
+            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_DUPLICATE, null, aiCalled = false, wasAlertPosted = false)
             return
         }
 
@@ -101,35 +111,45 @@ class NotificationPipeline @Inject constructor(
             classifier.classify(e.toRequest())
         } catch (t: Throwable) {
             Log.w(TAG, "classify failed", t)
-            record(e, Decision.ERROR, DecisionReasonCode.ERROR_AI_UNAVAILABLE, null, false)
+            record(e, Decision.ERROR, DecisionReasonCode.ERROR_AI_UNAVAILABLE, null, aiCalled = true, wasAlertPosted = false)
             return
         }
 
         val shouldAlert = result.decision == Decision.ALERT && result.confidence >= ALERT_THRESHOLD
         if (!shouldAlert) {
-            record(e, Decision.SILENT, result.reasonCode, result.userVisibleReason, false)
+            record(e, Decision.SILENT, result.reasonCode, result.userVisibleReason, aiCalled = true, wasAlertPosted = false)
             return
         }
         if (s.simulationModeEnabled) {
-            record(e, Decision.WOULD_ALERT, result.reasonCode, result.userVisibleReason, false)
-            return
-        }
-        if (!dedupe.canAlert(e.packageName)) {
-            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_COOLDOWN, "Recent alert from this app", false)
+            record(e, Decision.WOULD_ALERT, result.reasonCode, result.userVisibleReason, aiCalled = true, wasAlertPosted = false)
             return
         }
 
-        notifier.post(
-            CriticalAlert(
-                sourcePackage = e.packageName,
-                sourceLabel = e.appLabel,
-                titleLine = "${e.appLabel}: ${e.title ?: e.body ?: "Notification"}",
-                reasonLine = result.userVisibleReason ?: "Marked critical.",
-                sourceContentIntent = e.contentIntent,
-                vibrate = s.vibrateForCriticalAlerts,
-            ),
+        // Important: sound immediately, unless the global anti-storm backstop is tripped.
+        if (!dedupe.tryConsumeGlobalAlertSlot()) {
+            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_RATE_LIMIT, "Too many alerts just now — held back.", aiCalled = true, wasAlertPosted = false)
+            return
+        }
+
+        val alert = CriticalAlert(
+            sourcePackage = e.packageName,
+            sourceLabel = e.appLabel,
+            titleLine = "${e.appLabel}: ${e.title ?: e.body ?: "Notification"}",
+            reasonLine = result.userVisibleReason ?: "Marked critical.",
+            sourceContentIntent = e.contentIntent,
+            vibrate = s.vibrateForCriticalAlerts,
         )
-        record(e, Decision.ALERT, result.reasonCode, result.userVisibleReason, true)
+        notifier.post(alert, e.notificationKey.hashCode())
+        postedSourceKeys.add(e.notificationKey)
+        record(e, Decision.ALERT, result.reasonCode, result.userVisibleReason, aiCalled = true, wasAlertPosted = true)
+    }
+
+    /** A source notification was removed: mirror it by cancelling our alert for that key (spec §5). */
+    fun onSourceRemoved(sourceKey: String) {
+        if (postedSourceKeys.remove(sourceKey)) {
+            runCatching { notifier.cancel(sourceKey.hashCode()) }
+                .onFailure { Log.w(TAG, "cancel mirror failed", it) }
+        }
     }
 
     private fun ExtractedNotification.toRequest() = ClassificationRequest(
@@ -146,9 +166,10 @@ class NotificationPipeline @Inject constructor(
         decision: Decision,
         reasonCode: DecisionReasonCode,
         userVisibleReason: String?,
+        aiCalled: Boolean,
         wasAlertPosted: Boolean,
     ) {
-        Log.i(TAG, "${e.packageName} -> $decision ($reasonCode) posted=$wasAlertPosted")
+        Log.i(TAG, "${e.packageName} -> $decision ($reasonCode) ai=$aiCalled posted=$wasAlertPosted")
         val entry = DecisionLogEntry(
             timeMs = System.currentTimeMillis(),
             appLabel = e.appLabel,
@@ -156,6 +177,7 @@ class NotificationPipeline @Inject constructor(
             decision = decision,
             reasonCode = reasonCode,
             userVisibleReason = userVisibleReason,
+            aiCalled = aiCalled,
             wasAlertPosted = wasAlertPosted,
         )
         _log.update { (listOf(entry) + it).take(MAX_LOG) }
@@ -163,7 +185,8 @@ class NotificationPipeline @Inject constructor(
 
     companion object {
         const val ALERT_THRESHOLD = 0.80
-        private const val MAX_LOG = 50
+        const val MAX_LOG = 100
+        const val DEBUG_KEY_PREFIX = "debug-"
         private const val TAG = "ShushlyPipeline"
         private const val DEMO_PACKAGE = "com.demo.testapp"
         private const val DEMO_LABEL = "Demo App"

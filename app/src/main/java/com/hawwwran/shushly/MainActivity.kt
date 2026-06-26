@@ -34,9 +34,13 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,10 +48,15 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hawwwran.shushly.core.model.Decision
+import com.hawwwran.shushly.core.model.DecisionReasonCode
 import com.hawwwran.shushly.feature.home.HomeViewModel
 import com.hawwwran.shushly.feature.home.ReadinessUi
 import com.hawwwran.shushly.service.listener.DecisionLogEntry
 import dagger.hilt.android.AndroidEntryPoint
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -226,32 +235,111 @@ private fun DebugCard(quietOn: Boolean, onFireAlert: () -> Unit, onFireSilent: (
     }
 }
 
+private const val COLLAPSED_LOG_COUNT = 8
+private val timeFormatter: DateTimeFormatter =
+    DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
+
 @Composable
 private fun DecisionLogCard(log: List<DecisionLogEntry>) {
+    var expanded by remember { mutableStateOf(false) }
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Decision log", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            if (log.isEmpty()) {
-                Text("No decisions yet.", style = MaterialTheme.typography.bodySmall)
-            } else {
-                log.take(15).forEach { entry ->
-                    Column {
-                        Text(
-                            text = "${entry.decision} · ${entry.appLabel}",
-                            fontWeight = FontWeight.Medium,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                        Text(
-                            text = entry.userVisibleReason ?: entry.reasonCode.name,
-                            fontFamily = FontFamily.Monospace,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Processing log",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                if (log.size > COLLAPSED_LOG_COUNT) {
+                    TextButton(onClick = { expanded = !expanded }) {
+                        Text(if (expanded) "Show less" else "Show all (${log.size})")
                     }
+                }
+            }
+            if (log.isEmpty()) {
+                Text("No notifications processed yet.", style = MaterialTheme.typography.bodySmall)
+            } else {
+                val shown = if (expanded) log else log.take(COLLAPSED_LOG_COUNT)
+                shown.forEach { entry ->
+                    LogRow(entry)
                     HorizontalDivider()
                 }
             }
         }
     }
+}
+
+@Composable
+private fun LogRow(entry: DecisionLogEntry) {
+    val decisionColor = when (entry.decision) {
+        Decision.ALERT -> OkColor
+        Decision.ERROR -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = decisionLabel(entry.decision),
+                fontWeight = FontWeight.Bold,
+                color = decisionColor,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = timeFormatter.format(Instant.ofEpochMilli(entry.timeMs)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Text(
+            text = "${entry.appLabel} · ${entry.packageName}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = lifecycleText(entry),
+            fontFamily = FontFamily.Monospace,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        entry.userVisibleReason?.let {
+            Text(text = it, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+private fun decisionLabel(decision: Decision): String = when (decision) {
+    Decision.ALERT -> "ALERT"
+    Decision.SILENT -> "SILENT"
+    Decision.SKIPPED -> "SKIPPED"
+    Decision.ERROR -> "ERROR"
+    Decision.WOULD_ALERT -> "WOULD ALERT"
+}
+
+/** Renders one entry as a lifecycle: seen -> eligibility -> AI call -> decision (spec C). */
+private fun lifecycleText(entry: DecisionLogEntry): String {
+    if (!entry.aiCalled) {
+        val why = when (entry.reasonCode) {
+            DecisionReasonCode.SKIPPED_QUIET_MODE_OFF -> "Smart Quiet Mode off"
+            DecisionReasonCode.SKIPPED_PROTECTED_SOURCE -> "protected source"
+            DecisionReasonCode.SKIPPED_NOT_ELIGIBLE -> "not eligible"
+            DecisionReasonCode.SKIPPED_NO_USABLE_TEXT -> "no usable text"
+            DecisionReasonCode.SKIPPED_DUPLICATE -> "duplicate (AI cooldown)"
+            DecisionReasonCode.SILENT_GROUP_SUMMARY -> "group summary"
+            else -> entry.reasonCode.name.lowercase().replace('_', ' ')
+        }
+        return "seen → stopped: $why → no AI call"
+    }
+    val outcome = when (entry.decision) {
+        Decision.ALERT -> if (entry.wasAlertPosted) "ALERT → posted" else "ALERT"
+        Decision.SILENT -> "SILENT"
+        Decision.WOULD_ALERT -> "WOULD ALERT (simulation)"
+        Decision.ERROR -> "ERROR → stayed silent"
+        Decision.SKIPPED ->
+            if (entry.reasonCode == DecisionReasonCode.SKIPPED_RATE_LIMIT) "ALERT but rate-limited (held back)"
+            else "skipped"
+    }
+    return "seen → eligible → AI called → $outcome"
 }
 
 private fun Context.startSafely(intent: Intent) {

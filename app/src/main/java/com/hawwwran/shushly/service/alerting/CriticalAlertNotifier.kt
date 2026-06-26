@@ -14,7 +14,12 @@ import javax.inject.Singleton
 
 /** Posts Shushly's own audible re-alert (spec §12). */
 interface CriticalAlertNotifier {
-    fun post(alert: CriticalAlert)
+    /** Posts under [notifId]; the pipeline derives it per source notification so distinct
+     * important notifications each sound, while re-posting the same source updates silently. */
+    fun post(alert: CriticalAlert, notifId: Int)
+
+    /** Cancels a previously posted alert (used to mirror source-notification dismissal). */
+    fun cancel(notifId: Int)
 }
 
 @Singleton
@@ -25,12 +30,10 @@ class CriticalAlertNotifierImpl @Inject constructor(
     private val nm: NotificationManager =
         context.getSystemService(NotificationManager::class.java)
 
-    override fun post(alert: CriticalAlert) {
+    override fun post(alert: CriticalAlert, notifId: Int) {
         NotificationChannels.ensureAll(context)
         // Vibration is fixed per channel (immutable after creation), so the toggle selects which.
         val channelId = NotificationChannels.channelForVibrate(alert.vibrate)
-        // One stable id per source package: a follow-up updates rather than stacks.
-        val notifId = alert.sourcePackage.hashCode()
 
         val publicVersion = Notification.Builder(context, channelId)
             .setSmallIcon(R.drawable.ic_shushly_alert)
@@ -61,5 +64,9 @@ class CriticalAlertNotifierImpl @Inject constructor(
             .build()
 
         nm.notify(notifId, notification)
+    }
+
+    override fun cancel(notifId: Int) {
+        nm.cancel(notifId)
     }
 }

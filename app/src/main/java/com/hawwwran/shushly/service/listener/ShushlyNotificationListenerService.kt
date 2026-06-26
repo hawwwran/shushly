@@ -40,6 +40,12 @@ class ShushlyNotificationListenerService : NotificationListenerService() {
         Log.i(TAG, "listener connected")
     }
 
+    override fun onNotificationRemoved(sbn: StatusBarNotification, rankingMap: RankingMap, reason: Int) {
+        // Never act on our own notifications (spec §7.2); mirror only third-party source dismissals.
+        if (sbn.packageName == applicationContext.packageName) return
+        pipeline?.onSourceRemoved(sbn.key)
+    }
+
     override fun onNotificationPosted(sbn: StatusBarNotification, rankingMap: RankingMap) {
         // Never analyse our own notifications, including the critical re-alerts we post (spec §7.2).
         if (sbn.packageName == applicationContext.packageName) return
