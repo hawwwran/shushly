@@ -1,0 +1,18 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+app/build/
+build/
+*.apk
+*.keystore
+!debug.keystore
+
+# Private planning docs — local only, never published
+secret.plans/
