@@ -126,7 +126,7 @@ private fun SpikeScreen(viewModel: HomeViewModel, modifier: Modifier = Modifier)
                     context.openAppNotificationSettings()
                 }
             },
-            onFixChannel = { context.openAppNotificationSettings() },
+            onFixAlarm = { context.startSafely(Intent(Settings.ACTION_SOUND_SETTINGS)) },
         )
 
         MasterToggleCard(
@@ -153,7 +153,7 @@ private fun ReadinessCard(
     onFixListener: () -> Unit,
     onFixPolicy: () -> Unit,
     onFixNotifications: () -> Unit,
-    onFixChannel: () -> Unit,
+    onFixAlarm: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -161,7 +161,7 @@ private fun ReadinessCard(
             ReadinessRow("Notification access", readiness.listenerEnabled, onFixListener)
             ReadinessRow("Quiet-mode (DND) access", readiness.policyAccessGranted, onFixPolicy)
             ReadinessRow("Notifications allowed for Shushly", readiness.postNotificationsGranted, onFixNotifications)
-            ReadinessRow("Critical alert channel can make sound", readiness.criticalChannelCanAlert, onFixChannel)
+            ReadinessRow("Shushly can be heard (alarm volume)", readiness.alarmAudible, onFixAlarm)
         }
     }
 }
@@ -331,7 +331,7 @@ private fun lifecycleText(entry: DecisionLogEntry): String {
         return "seen → stopped: $why → no AI call"
     }
     val outcome = when (entry.decision) {
-        Decision.ALERT -> if (entry.wasAlertPosted) "ALERT → posted" else "ALERT"
+        Decision.ALERT -> if (entry.wasAlerted) "ALERT → sounded" else "ALERT"
         Decision.SILENT -> "SILENT"
         Decision.WOULD_ALERT -> "WOULD ALERT (simulation)"
         Decision.ERROR -> "ERROR → stayed silent"

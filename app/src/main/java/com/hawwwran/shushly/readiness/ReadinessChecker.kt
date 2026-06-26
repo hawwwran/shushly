@@ -5,9 +5,9 @@ import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
+import android.media.AudioManager
 import android.os.Build
 import android.provider.Settings
-import com.hawwwran.shushly.service.alerting.NotificationChannels
 import com.hawwwran.shushly.service.listener.ShushlyNotificationListenerService
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
@@ -20,6 +20,9 @@ class ReadinessChecker @Inject constructor(
 ) {
     private val nm: NotificationManager =
         context.getSystemService(NotificationManager::class.java)
+
+    private val audioManager: AudioManager =
+        context.getSystemService(AudioManager::class.java)
 
     fun listenerEnabled(): Boolean {
         val component = ComponentName(context, ShushlyNotificationListenerService::class.java)
@@ -41,8 +44,15 @@ class ReadinessChecker @Inject constructor(
             PackageManager.PERMISSION_GRANTED
     }
 
-    fun criticalChannelCanAlert(): Boolean = NotificationChannels.criticalChannelCanAlert(context)
+    /**
+     * The alert tone rides the alarm stream (the alarm lane is the only one Smart Quiet Mode leaves
+     * open). If alarm volume is 0, Shushly is inaudible even when everything else is configured.
+     * Advisory only, not a hard minimum — volume is transient and user-controllable.
+     */
+    fun alarmAudible(): Boolean =
+        runCatching { audioManager.getStreamVolume(AudioManager.STREAM_ALARM) > 0 }.getOrDefault(true)
 
+    /** Sound-only alerting needs the listener bound and DND-policy access (for the zen rule). */
     fun minimumRequirementsMet(): Boolean =
-        listenerEnabled() && policyAccessGranted() && postNotificationsGranted() && criticalChannelCanAlert()
+        listenerEnabled() && policyAccessGranted()
 }

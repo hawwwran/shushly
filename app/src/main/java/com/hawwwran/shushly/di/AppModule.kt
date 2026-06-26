@@ -2,8 +2,8 @@ package com.hawwwran.shushly.di
 
 import com.hawwwran.shushly.service.ai.AiClassifier
 import com.hawwwran.shushly.service.ai.FakeAiClassifier
-import com.hawwwran.shushly.service.alerting.CriticalAlertNotifier
-import com.hawwwran.shushly.service.alerting.CriticalAlertNotifierImpl
+import com.hawwwran.shushly.service.alerting.CriticalAlertSounder
+import com.hawwwran.shushly.service.alerting.CriticalAlertSounderImpl
 import com.hawwwran.shushly.service.quietmode.QuietModeController
 import com.hawwwran.shushly.service.quietmode.ZenRuleQuietModeController
 import dagger.Binds
@@ -20,7 +20,7 @@ abstract class AppModule {
     abstract fun bindAiClassifier(impl: FakeAiClassifier): AiClassifier
 
     @Binds
-    abstract fun bindCriticalAlertNotifier(impl: CriticalAlertNotifierImpl): CriticalAlertNotifier
+    abstract fun bindCriticalAlertSounder(impl: CriticalAlertSounderImpl): CriticalAlertSounder
 
     @Binds
     abstract fun bindQuietModeController(impl: ZenRuleQuietModeController): QuietModeController

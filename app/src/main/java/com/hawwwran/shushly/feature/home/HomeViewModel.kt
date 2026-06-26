@@ -27,10 +27,12 @@ data class ReadinessUi(
     val listenerEnabled: Boolean = false,
     val policyAccessGranted: Boolean = false,
     val postNotificationsGranted: Boolean = false,
-    val criticalChannelCanAlert: Boolean = false,
+    val alarmAudible: Boolean = false,
 ) {
+    // Sound-only minimum: listener + DND-policy access. postNotificationsGranted and alarmAudible
+    // are advisory, not blocking.
     val minimumMet: Boolean
-        get() = listenerEnabled && policyAccessGranted && postNotificationsGranted && criticalChannelCanAlert
+        get() = listenerEnabled && policyAccessGranted
 }
 
 @HiltViewModel
@@ -57,13 +59,13 @@ class HomeViewModel @Inject constructor(
     }
 
     fun refresh() {
-        NotificationChannels.ensureAll(appContext)
+        NotificationChannels.ensureBaseChannels(appContext)
         quietMode.refresh()
         readinessUi = ReadinessUi(
             listenerEnabled = readiness.listenerEnabled(),
             policyAccessGranted = readiness.policyAccessGranted(),
             postNotificationsGranted = readiness.postNotificationsGranted(),
-            criticalChannelCanAlert = readiness.criticalChannelCanAlert(),
+            alarmAudible = readiness.alarmAudible(),
         )
     }
 

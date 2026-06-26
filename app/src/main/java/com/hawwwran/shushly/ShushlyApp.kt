@@ -8,6 +8,6 @@ import dagger.hilt.android.HiltAndroidApp
 class ShushlyApp : Application() {
     override fun onCreate() {
         super.onCreate()
-        NotificationChannels.ensureAll(this)
+        NotificationChannels.ensureBaseChannels(this)
     }
 }
