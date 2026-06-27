@@ -1,9 +1,13 @@
 package com.hawwwran.shushly.di
 
+import com.hawwwran.shushly.core.data.DeviceTokenStore
+import com.hawwwran.shushly.core.data.EncryptedDeviceTokenStore
 import com.hawwwran.shushly.core.data.InstalledAppRepository
 import com.hawwwran.shushly.core.data.InstalledAppRepositoryImpl
+import com.hawwwran.shushly.core.data.SettingsRepository
+import com.hawwwran.shushly.core.data.SettingsRepositoryImpl
 import com.hawwwran.shushly.service.ai.AiClassifier
-import com.hawwwran.shushly.service.ai.FakeAiClassifier
+import com.hawwwran.shushly.service.ai.RoutingAiClassifier
 import com.hawwwran.shushly.service.alerting.CriticalAlertSounder
 import com.hawwwran.shushly.service.alerting.CriticalAlertSounderImpl
 import com.hawwwran.shushly.service.quietmode.QuietModeController
@@ -17,9 +21,15 @@ import dagger.hilt.components.SingletonComponent
 @InstallIn(SingletonComponent::class)
 abstract class AppModule {
 
-    /** Spike: always the fake classifier. Phase 2 swaps in a relay-or-fake selector. */
+    /** Selects relay-or-fake per call (relay when configured; fake in debug otherwise). */
     @Binds
-    abstract fun bindAiClassifier(impl: FakeAiClassifier): AiClassifier
+    abstract fun bindAiClassifier(impl: RoutingAiClassifier): AiClassifier
+
+    @Binds
+    abstract fun bindSettingsRepository(impl: SettingsRepositoryImpl): SettingsRepository
+
+    @Binds
+    abstract fun bindDeviceTokenStore(impl: EncryptedDeviceTokenStore): DeviceTokenStore
 
     @Binds
     abstract fun bindCriticalAlertSounder(impl: CriticalAlertSounderImpl): CriticalAlertSounder

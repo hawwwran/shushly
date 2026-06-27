@@ -12,4 +12,6 @@ data class AppSettings(
     val selectedPackages: Set<String> = emptySet(),
     val zenRuleId: String? = null,
     val onboardingComplete: Boolean = false,
+    val aiConnection: AiConnectionState = AiConnectionState(),
+    val customAiInstruction: String? = null,
 )

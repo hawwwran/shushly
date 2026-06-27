@@ -13,7 +13,7 @@ import javax.inject.Singleton
  * debug builds; never the real path in release.
  */
 @Singleton
-class FakeAiClassifier @Inject constructor() : AiClassifier {
+open class FakeAiClassifier @Inject constructor() : AiClassifier {
     override suspend fun classify(request: ClassificationRequest): ClassificationResult {
         val text = "${request.title.orEmpty()} ${request.body.orEmpty()}"
         return if (text.contains("TEST_ALERT")) {

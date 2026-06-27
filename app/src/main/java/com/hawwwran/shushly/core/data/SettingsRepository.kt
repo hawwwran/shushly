@@ -5,9 +5,12 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.hawwwran.shushly.core.model.AiConnectionMode
+import com.hawwwran.shushly.core.model.AiConnectionState
 import com.hawwwran.shushly.core.model.AppSettings
 import com.hawwwran.shushly.core.model.EligibilityMode
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -19,11 +22,31 @@ import javax.inject.Singleton
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "shushly_settings")
 
-/** DataStore-backed user settings. Holds no credentials (those use Keystore in Phase 1). */
+/**
+ * User settings. Holds no credentials (the device token uses Keystore-backed storage; see
+ * [DeviceTokenStore]). An interface so the decision/relay units can be unit-tested with a fake.
+ */
+interface SettingsRepository {
+    val settings: Flow<AppSettings>
+    suspend fun snapshot(): AppSettings
+    suspend fun setSmartQuietMode(enabled: Boolean)
+    suspend fun setVibrate(enabled: Boolean)
+    suspend fun setSimulationMode(enabled: Boolean)
+    suspend fun setEligibilityMode(mode: EligibilityMode)
+    suspend fun setSelectedPackages(packages: Set<String>)
+    suspend fun setZenRuleId(id: String?)
+    suspend fun setOnboardingComplete(complete: Boolean)
+    suspend fun setRelayBaseUrl(url: String?)
+    suspend fun setAiConnectionMode(mode: AiConnectionMode)
+    suspend fun setAiVerified(verified: Boolean, atMs: Long?)
+    suspend fun setCustomAiInstruction(text: String?)
+}
+
+/** DataStore-backed [SettingsRepository]. */
 @Singleton
-class SettingsRepository @Inject constructor(
+class SettingsRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
-) {
+) : SettingsRepository {
     private object Keys {
         val SMART_QUIET = booleanPreferencesKey("smart_quiet_enabled")
         val VIBRATE = booleanPreferencesKey("vibrate_critical")
@@ -32,32 +55,54 @@ class SettingsRepository @Inject constructor(
         val SELECTED = stringSetPreferencesKey("selected_packages")
         val ZEN_RULE_ID = stringPreferencesKey("zen_rule_id")
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
+        val RELAY_BASE_URL = stringPreferencesKey("relay_base_url")
+        val AI_MODE = stringPreferencesKey("ai_connection_mode")
+        val AI_VERIFIED = booleanPreferencesKey("ai_verified")
+        val AI_VERIFIED_AT = longPreferencesKey("ai_verified_at_ms")
+        val CUSTOM_AI_INSTRUCTION = stringPreferencesKey("custom_ai_instruction")
     }
 
-    val settings: Flow<AppSettings> = context.dataStore.data.map { it.toAppSettings() }
+    override val settings: Flow<AppSettings> = context.dataStore.data.map { it.toAppSettings() }
 
-    suspend fun snapshot(): AppSettings = settings.first()
+    override suspend fun snapshot(): AppSettings = settings.first()
 
-    suspend fun setSmartQuietMode(enabled: Boolean) =
+    override suspend fun setSmartQuietMode(enabled: Boolean) =
         edit { it[Keys.SMART_QUIET] = enabled }
 
-    suspend fun setVibrate(enabled: Boolean) =
+    override suspend fun setVibrate(enabled: Boolean) =
         edit { it[Keys.VIBRATE] = enabled }
 
-    suspend fun setSimulationMode(enabled: Boolean) =
+    override suspend fun setSimulationMode(enabled: Boolean) =
         edit { it[Keys.SIMULATION] = enabled }
 
-    suspend fun setEligibilityMode(mode: EligibilityMode) =
+    override suspend fun setEligibilityMode(mode: EligibilityMode) =
         edit { it[Keys.ELIGIBILITY_MODE] = mode.name }
 
-    suspend fun setSelectedPackages(packages: Set<String>) =
+    override suspend fun setSelectedPackages(packages: Set<String>) =
         edit { it[Keys.SELECTED] = packages }
 
-    suspend fun setZenRuleId(id: String?) =
+    override suspend fun setZenRuleId(id: String?) =
         edit { prefs -> if (id == null) prefs.remove(Keys.ZEN_RULE_ID) else prefs[Keys.ZEN_RULE_ID] = id }
 
-    suspend fun setOnboardingComplete(complete: Boolean) =
+    override suspend fun setOnboardingComplete(complete: Boolean) =
         edit { it[Keys.ONBOARDING_COMPLETE] = complete }
+
+    override suspend fun setRelayBaseUrl(url: String?) =
+        edit { prefs -> if (url == null) prefs.remove(Keys.RELAY_BASE_URL) else prefs[Keys.RELAY_BASE_URL] = url }
+
+    override suspend fun setAiConnectionMode(mode: AiConnectionMode) =
+        edit { it[Keys.AI_MODE] = mode.name }
+
+    override suspend fun setAiVerified(verified: Boolean, atMs: Long?) =
+        edit { prefs ->
+            prefs[Keys.AI_VERIFIED] = verified
+            if (atMs == null) prefs.remove(Keys.AI_VERIFIED_AT) else prefs[Keys.AI_VERIFIED_AT] = atMs
+        }
+
+    override suspend fun setCustomAiInstruction(text: String?) =
+        edit { prefs ->
+            if (text == null) prefs.remove(Keys.CUSTOM_AI_INSTRUCTION) else prefs[Keys.CUSTOM_AI_INSTRUCTION] = text
+        }
 
     private suspend fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         context.dataStore.edit(block)
@@ -73,5 +118,14 @@ class SettingsRepository @Inject constructor(
         selectedPackages = this[Keys.SELECTED] ?: emptySet(),
         zenRuleId = this[Keys.ZEN_RULE_ID],
         onboardingComplete = this[Keys.ONBOARDING_COMPLETE] ?: false,
+        aiConnection = AiConnectionState(
+            mode = this[Keys.AI_MODE]
+                ?.let { runCatching { AiConnectionMode.valueOf(it) }.getOrNull() }
+                ?: AiConnectionMode.RELAY_BACKEND,
+            relayBaseUrl = this[Keys.RELAY_BASE_URL],
+            isVerified = this[Keys.AI_VERIFIED] ?: false,
+            lastVerifiedAtMs = this[Keys.AI_VERIFIED_AT],
+        ),
+        customAiInstruction = this[Keys.CUSTOM_AI_INSTRUCTION],
     )
 }
