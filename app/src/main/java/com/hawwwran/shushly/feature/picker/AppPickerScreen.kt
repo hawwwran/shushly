@@ -49,11 +49,12 @@ fun AppPickerScreen(
     modifier: Modifier = Modifier,
 ) {
     val ui by viewModel.uiState.collectAsState()
+    val title = if (viewModel.target == PickerTarget.ALWAYS_ALERT) "Always alert" else "Choose apps"
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Choose apps") },
+                title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")

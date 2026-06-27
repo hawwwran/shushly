@@ -34,6 +34,7 @@ import com.hawwwran.shushly.feature.home.HomeScreen
 import com.hawwwran.shushly.feature.home.HomeViewModel
 import com.hawwwran.shushly.feature.onboarding.OnboardingScreen
 import com.hawwwran.shushly.feature.picker.AppPickerScreen
+import com.hawwwran.shushly.feature.picker.PickerTarget
 import com.hawwwran.shushly.feature.picker.PickerViewModel
 import com.hawwwran.shushly.feature.settings.SettingsScreen
 import com.hawwwran.shushly.feature.settings.StubScreen
@@ -106,10 +107,13 @@ private fun AppNavHost(viewModel: HomeViewModel) {
                 viewModel = viewModel,
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenHistory = { navController.navigate(Routes.HISTORY) },
-                onChooseApps = { navController.navigate(Routes.APP_PICKER) },
+                onChooseApps = { target -> navController.navigate("${Routes.APP_PICKER}/${target.name}") },
             )
         }
-        composable(Routes.APP_PICKER) {
+        composable(
+            route = "${Routes.APP_PICKER}/{target}",
+            arguments = listOf(navArgument("target") { type = NavType.StringType }),
+        ) {
             AppPickerScreen(
                 viewModel = hiltViewModel<PickerViewModel>(),
                 onBack = { navController.popBackStack() },

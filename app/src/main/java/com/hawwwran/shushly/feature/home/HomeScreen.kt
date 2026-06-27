@@ -49,6 +49,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.hawwwran.shushly.core.model.EligibilityMode
 import com.hawwwran.shushly.feature.common.OkColor
+import com.hawwwran.shushly.feature.picker.PickerTarget
 import com.hawwwran.shushly.feature.common.openAppNotificationSettings
 import com.hawwwran.shushly.feature.common.openBatteryOptimizationSettings
 import com.hawwwran.shushly.feature.common.startSafely
@@ -58,7 +59,7 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onOpenSettings: () -> Unit,
     onOpenHistory: () -> Unit,
-    onChooseApps: () -> Unit,
+    onChooseApps: (PickerTarget) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -138,7 +139,12 @@ fun HomeScreen(
                 mode = settings.eligibilityMode,
                 selectedCount = settings.selectedPackages.size,
                 onModeChange = viewModel::setEligibilityMode,
-                onChooseApps = onChooseApps,
+                onChooseApps = { onChooseApps(PickerTarget.ELIGIBILITY) },
+            )
+
+            AlwaysAlertCard(
+                count = settings.alwaysAlertPackages.size,
+                onChooseApps = { onChooseApps(PickerTarget.ALWAYS_ALERT) },
             )
 
             DebugCard(
@@ -327,7 +333,8 @@ private fun EligibilityCard(
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("AI may re-alert for", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(
-                text = "Notifications stay silent under Smart Quiet Mode; this picks which apps the AI may sound an alert for.",
+                text = "Notifications stay silent under Smart Quiet Mode; this picks which apps the AI may sound an alert for. " +
+                    "Always-alert apps (below) are handled separately and sound first, without the AI.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -360,6 +367,26 @@ private fun nowEligibilitySummary(mode: EligibilityMode, count: Int): String {
             if (count == 0) "Now: no apps can sound — pick some below." else "Now: $count $apps can sound an alert."
         EligibilityMode.ALL_APPS_EXCEPT_SELECTED ->
             if (count == 0) "Now: every app can sound an alert." else "Now: every app except $count $apps can sound an alert."
+    }
+}
+
+@Composable
+private fun AlwaysAlertCard(count: Int, onChooseApps: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Always alert", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = "These apps always make a sound — every notification, without the AI.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = if (count == 0) "No apps yet" else "$count ${if (count == 1) "app" else "apps"}",
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
+            )
+            OutlinedButton(onClick = onChooseApps) { Text("Choose apps") }
+        }
     }
 }
 

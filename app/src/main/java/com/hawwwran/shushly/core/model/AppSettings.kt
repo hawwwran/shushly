@@ -10,6 +10,8 @@ data class AppSettings(
     val simulationModeEnabled: Boolean = false,
     val eligibilityMode: EligibilityMode = EligibilityMode.ALL_APPS_EXCEPT_SELECTED,
     val selectedPackages: Set<String> = emptySet(),
+    /** Apps that always sound on every notification, bypassing the AI (beats eligibility). */
+    val alwaysAlertPackages: Set<String> = emptySet(),
     val zenRuleId: String? = null,
     val onboardingComplete: Boolean = false,
     val aiConnection: AiConnectionState = AiConnectionState(),

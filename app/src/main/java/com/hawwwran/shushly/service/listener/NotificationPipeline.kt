@@ -77,6 +77,22 @@ class NotificationPipeline @Inject constructor(
             record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_PROTECTED_SOURCE, "Protected source", aiCalled = false, wasAlerted = false)
             return
         }
+        // Always-alert: sound on every notification, bypassing the AI and the eligibility/text/dedupe/
+        // group-summary checks. Still gated by simulation and the global anti-storm backstop. Protected
+        // sources are checked first, so they always win.
+        if (e.packageName in s.alwaysAlertPackages) {
+            if (s.simulationModeEnabled) {
+                record(e, Decision.WOULD_ALERT, DecisionReasonCode.ALERT_ALWAYS, "Always-alert (simulated)", aiCalled = false, wasAlerted = false)
+                return
+            }
+            if (!dedupe.tryConsumeGlobalAlertSlot()) {
+                record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_RATE_LIMIT, "Too many alerts just now — held back.", aiCalled = false, wasAlerted = false)
+                return
+            }
+            sounder.playAlert(s.vibrateForCriticalAlerts)
+            record(e, Decision.ALERT, DecisionReasonCode.ALERT_ALWAYS, "Always-alert: you set this app to always sound.", aiCalled = false, wasAlerted = true)
+            return
+        }
         if (e.isGroupSummary && e.body == null) {
             record(e, Decision.SKIPPED, DecisionReasonCode.SILENT_GROUP_SUMMARY, null, aiCalled = false, wasAlerted = false)
             return

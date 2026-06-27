@@ -10,6 +10,11 @@ enum class DecisionReasonCode {
     ALERT_TIME_SENSITIVE_ACTION,
     ALERT_SAFETY_OR_EMERGENCY,
     ALERT_WORK_INCIDENT,
+
+    /** User put the app in "Always alert" — it sounds on every notification, bypassing the AI.
+     *  Local-only; never a relay/OpenAI wire code. */
+    ALERT_ALWAYS,
+
     SILENT_ROUTINE,
     SILENT_MARKETING,
     SILENT_GROUP_SUMMARY,

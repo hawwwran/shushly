@@ -17,6 +17,7 @@ class FakeSettingsRepository(var current: AppSettings = AppSettings()) : Setting
     override suspend fun setSimulationMode(enabled: Boolean) {}
     override suspend fun setEligibilityMode(mode: EligibilityMode) {}
     override suspend fun setSelectedPackages(packages: Set<String>) {}
+    override suspend fun setAlwaysAlertPackages(packages: Set<String>) {}
     override suspend fun setZenRuleId(id: String?) {}
     override suspend fun setOnboardingComplete(complete: Boolean) {}
     override suspend fun setAiProvider(provider: AiProviderType) {}

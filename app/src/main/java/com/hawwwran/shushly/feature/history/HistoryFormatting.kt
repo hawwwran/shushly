@@ -38,6 +38,13 @@ internal fun decisionLabel(entity: DecisionHistoryEntity): String = when (entity
 /** Renders one entry as a lifecycle: seen -> eligibility -> AI call -> decision. */
 internal fun lifecycleText(entity: DecisionHistoryEntity): String {
     val reason = entity.reasonOrNull()
+    // Always-alert apps sound (or would, or are held back) without ever calling the AI.
+    if (reason == DecisionReasonCode.ALERT_ALWAYS) {
+        return when (entity.decisionOrNull()) {
+            Decision.WOULD_ALERT -> "seen → always-alert app → would sound (simulation)"
+            else -> "seen → always-alert app → sounded (no AI)"
+        }
+    }
     if (!entity.aiCalled) {
         val why = when (reason) {
             DecisionReasonCode.SKIPPED_QUIET_MODE_OFF -> "Smart Quiet Mode off"
@@ -45,6 +52,7 @@ internal fun lifecycleText(entity: DecisionHistoryEntity): String {
             DecisionReasonCode.SKIPPED_NOT_ELIGIBLE -> "not eligible"
             DecisionReasonCode.SKIPPED_NO_USABLE_TEXT -> "no usable text"
             DecisionReasonCode.SKIPPED_DUPLICATE -> "duplicate (AI cooldown)"
+            DecisionReasonCode.SKIPPED_RATE_LIMIT -> "too many alerts (held back)"
             DecisionReasonCode.SILENT_GROUP_SUMMARY -> "group summary"
             else -> entity.reasonCode.lowercase().replace('_', ' ')
         }

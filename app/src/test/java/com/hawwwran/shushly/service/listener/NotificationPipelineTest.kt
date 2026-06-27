@@ -210,6 +210,94 @@ class NotificationPipelineTest {
         assertFalse(records[1].aiCalled)
         assertEquals(1, h.sounder.callCount) // only the first sounded
     }
+
+    // --- Always alert ---
+
+    @Test
+    fun alwaysAlertApp_soundsWithoutCallingClassifier() = runTest {
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(settings(always = setOf("com.example.app")), classifier)
+        h.pipeline.processExtracted(extracted(pkg = "com.example.app"))
+
+        assertEquals(Decision.ALERT.name, h.history.last?.decision)
+        assertEquals(DecisionReasonCode.ALERT_ALWAYS.name, h.history.last?.reasonCode)
+        assertFalse(h.history.last!!.aiCalled)
+        assertTrue(h.history.last!!.wasAlerted)
+        assertEquals(1, h.sounder.callCount)
+        assertEquals(0, classifier.callCount) // AI is never consulted
+    }
+
+    @Test
+    fun alwaysAlert_simulation_recordsWouldAlert_notSounded() = runTest {
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(settings(simulation = true, always = setOf("com.example.app")), classifier)
+        h.pipeline.processExtracted(extracted(pkg = "com.example.app"))
+
+        assertEquals(Decision.WOULD_ALERT.name, h.history.last?.decision)
+        assertEquals(DecisionReasonCode.ALERT_ALWAYS.name, h.history.last?.reasonCode)
+        assertEquals(0, h.sounder.callCount)
+        assertEquals(0, classifier.callCount)
+    }
+
+    @Test
+    fun alwaysAlert_backstopTripped_recordsRateLimit_notSounded() = runTest {
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(settings(always = setOf("com.example.app")), classifier)
+        // Consume every global alert slot first.
+        repeat(DedupeRateLimiter.MAX_ALERTS_PER_WINDOW) { assertTrue(h.dedupe.tryConsumeGlobalAlertSlot()) }
+
+        h.pipeline.processExtracted(extracted(pkg = "com.example.app"))
+
+        assertEquals(Decision.SKIPPED.name, h.history.last?.decision)
+        assertEquals(DecisionReasonCode.SKIPPED_RATE_LIMIT.name, h.history.last?.reasonCode)
+        assertEquals(0, h.sounder.callCount)
+        assertEquals(0, classifier.callCount)
+    }
+
+    @Test
+    fun alwaysAlert_beatsEligibility() = runTest {
+        // App is NOT eligible (SELECTED_APPS + empty selection) but IS in always-alert.
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(
+            settings(
+                eligibilityMode = EligibilityMode.SELECTED_APPS,
+                selected = emptySet(),
+                always = setOf("com.example.app"),
+            ),
+            classifier,
+        )
+        h.pipeline.processExtracted(extracted(pkg = "com.example.app"))
+
+        assertEquals(Decision.ALERT.name, h.history.last?.decision)
+        assertEquals(DecisionReasonCode.ALERT_ALWAYS.name, h.history.last?.reasonCode)
+        assertTrue(h.history.last!!.wasAlerted)
+        assertEquals(0, classifier.callCount)
+    }
+
+    @Test
+    fun protectedApp_inAlwaysAlert_stillProtected() = runTest {
+        // Protected source is checked first, so it wins over always-alert.
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val pkg = "com.google.android.dialer"
+        val h = Harness(settings(always = setOf(pkg)), classifier)
+        h.pipeline.processExtracted(extracted(pkg = pkg))
+
+        assertEquals(DecisionReasonCode.SKIPPED_PROTECTED_SOURCE.name, h.history.last?.reasonCode)
+        assertEquals(0, h.sounder.callCount)
+        assertEquals(0, classifier.callCount)
+    }
+
+    @Test
+    fun nonAlwaysAlertApp_stillFlowsThroughAi() = runTest {
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(settings(always = setOf("com.other.app")), classifier)
+        h.pipeline.processExtracted(extracted(pkg = "com.example.app"))
+
+        assertEquals(Decision.ALERT.name, h.history.last?.decision)
+        assertEquals(DecisionReasonCode.ALERT_WORK_INCIDENT.name, h.history.last?.reasonCode) // from the classifier
+        assertTrue(h.history.last!!.aiCalled)
+        assertEquals(1, classifier.callCount)
+    }
 }
 
 // --- helpers ---
@@ -220,6 +308,7 @@ private fun settings(
     vibrate: Boolean = true,
     eligibilityMode: EligibilityMode = EligibilityMode.ALL_APPS_EXCEPT_SELECTED,
     selected: Set<String> = emptySet(),
+    always: Set<String> = emptySet(),
 ): SettingsRepository = FakeSettingsRepository(
     AppSettings(
         smartQuietModeEnabled = smartQuiet,
@@ -227,6 +316,7 @@ private fun settings(
         vibrateForCriticalAlerts = vibrate,
         eligibilityMode = eligibilityMode,
         selectedPackages = selected,
+        alwaysAlertPackages = always,
     ),
 )
 

@@ -34,6 +34,7 @@ interface SettingsRepository {
     suspend fun setSimulationMode(enabled: Boolean)
     suspend fun setEligibilityMode(mode: EligibilityMode)
     suspend fun setSelectedPackages(packages: Set<String>)
+    suspend fun setAlwaysAlertPackages(packages: Set<String>)
     suspend fun setZenRuleId(id: String?)
     suspend fun setOnboardingComplete(complete: Boolean)
     suspend fun setAiProvider(provider: AiProviderType)
@@ -55,6 +56,7 @@ class SettingsRepositoryImpl @Inject constructor(
         val SIMULATION = booleanPreferencesKey("simulation_enabled")
         val ELIGIBILITY_MODE = stringPreferencesKey("eligibility_mode")
         val SELECTED = stringSetPreferencesKey("selected_packages")
+        val ALWAYS_ALERT = stringSetPreferencesKey("always_alert_packages")
         val ZEN_RULE_ID = stringPreferencesKey("zen_rule_id")
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
         val AI_PROVIDER = stringPreferencesKey("ai_provider")
@@ -84,6 +86,9 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setSelectedPackages(packages: Set<String>) =
         edit { it[Keys.SELECTED] = packages }
+
+    override suspend fun setAlwaysAlertPackages(packages: Set<String>) =
+        edit { it[Keys.ALWAYS_ALERT] = packages }
 
     override suspend fun setZenRuleId(id: String?) =
         edit { prefs -> if (id == null) prefs.remove(Keys.ZEN_RULE_ID) else prefs[Keys.ZEN_RULE_ID] = id }
@@ -126,6 +131,7 @@ class SettingsRepositoryImpl @Inject constructor(
             ?.let { runCatching { EligibilityMode.valueOf(it) }.getOrNull() }
             ?: EligibilityMode.ALL_APPS_EXCEPT_SELECTED,
         selectedPackages = this[Keys.SELECTED] ?: emptySet(),
+        alwaysAlertPackages = this[Keys.ALWAYS_ALERT] ?: emptySet(),
         zenRuleId = this[Keys.ZEN_RULE_ID],
         onboardingComplete = this[Keys.ONBOARDING_COMPLETE] ?: false,
         aiConnection = AiConnectionState(
