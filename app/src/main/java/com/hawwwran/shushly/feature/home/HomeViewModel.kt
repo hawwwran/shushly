@@ -11,7 +11,6 @@ import com.hawwwran.shushly.core.model.AppSettings
 import com.hawwwran.shushly.core.model.EligibilityMode
 import com.hawwwran.shushly.readiness.ReadinessChecker
 import com.hawwwran.shushly.service.alerting.NotificationChannels
-import com.hawwwran.shushly.service.listener.DecisionLogEntry
 import com.hawwwran.shushly.service.listener.NotificationPipeline
 import com.hawwwran.shushly.service.quietmode.QuietModeController
 import com.hawwwran.shushly.service.quietmode.QuietModeResult
@@ -50,8 +49,6 @@ class HomeViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
 
     val quietState: StateFlow<QuietModeState> = quietMode.observeState()
-
-    val decisionLog: StateFlow<List<DecisionLogEntry>> = pipeline.log
 
     /** null until the persisted flag is first read, then true/false. Drives the start destination. */
     val onboardingComplete: StateFlow<Boolean?> = settings.settings

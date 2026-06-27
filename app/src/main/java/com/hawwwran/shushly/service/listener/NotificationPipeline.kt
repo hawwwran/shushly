@@ -2,8 +2,10 @@ package com.hawwwran.shushly.service.listener
 
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import com.hawwwran.shushly.core.data.DecisionHistoryRepository
 import com.hawwwran.shushly.core.data.SeenAppsRepository
 import com.hawwwran.shushly.core.data.SettingsRepository
+import com.hawwwran.shushly.core.data.db.DecisionHistoryEntity
 import com.hawwwran.shushly.core.model.ClassificationRequest
 import com.hawwwran.shushly.core.model.Decision
 import com.hawwwran.shushly.core.model.DecisionReasonCode
@@ -11,25 +13,9 @@ import com.hawwwran.shushly.core.model.ExtractedNotification
 import com.hawwwran.shushly.core.policy.ProtectedSourcePolicy
 import com.hawwwran.shushly.service.ai.AiClassifier
 import com.hawwwran.shushly.service.alerting.CriticalAlertSounder
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
-
-/** One processed notification, surfaced as a lifecycle line in the Home processing log. */
-data class DecisionLogEntry(
-    val timeMs: Long,
-    val appLabel: String,
-    val packageName: String,
-    val decision: Decision,
-    val reasonCode: DecisionReasonCode,
-    val userVisibleReason: String?,
-    val aiCalled: Boolean,
-    val wasAlerted: Boolean,
-)
 
 /**
  * The decision pipeline (spec §7.2): eligibility → protected-source → text → dedupe →
@@ -48,9 +34,8 @@ class NotificationPipeline @Inject constructor(
     private val classifier: AiClassifier,
     private val sounder: CriticalAlertSounder,
     private val seenApps: SeenAppsRepository,
+    private val history: DecisionHistoryRepository,
 ) {
-    private val _log = MutableStateFlow<List<DecisionLogEntry>>(emptyList())
-    val log: StateFlow<List<DecisionLogEntry>> = _log.asStateFlow()
 
     suspend fun process(sbn: StatusBarNotification, appLabel: String) {
         val extracted = extractor.extract(sbn, appLabel) ?: return
@@ -146,7 +131,7 @@ class NotificationPipeline @Inject constructor(
         postedAt = postedAt,
     )
 
-    private fun record(
+    private suspend fun record(
         e: ExtractedNotification,
         decision: Decision,
         reasonCode: DecisionReasonCode,
@@ -155,22 +140,24 @@ class NotificationPipeline @Inject constructor(
         wasAlerted: Boolean,
     ) {
         Log.i(TAG, "${e.packageName} -> $decision ($reasonCode) ai=$aiCalled alerted=$wasAlerted")
-        val entry = DecisionLogEntry(
-            timeMs = System.currentTimeMillis(),
-            appLabel = e.appLabel,
+        val entity = DecisionHistoryEntity(
+            createdAtMs = System.currentTimeMillis(),
             packageName = e.packageName,
-            decision = decision,
-            reasonCode = reasonCode,
+            appLabel = e.appLabel,
+            notificationKeyHash = e.notificationKey.hashCode().toString(),
+            decision = decision.name,
+            reasonCode = reasonCode.name,
             userVisibleReason = userVisibleReason,
             aiCalled = aiCalled,
             wasAlerted = wasAlerted,
         )
-        _log.update { (listOf(entry) + it).take(MAX_LOG) }
+        // Resilient: a DB failure must never break the decision pipeline.
+        runCatching { history.record(entity) }
+            .onFailure { Log.w(TAG, "history insert failed", it) }
     }
 
     companion object {
         const val ALERT_THRESHOLD = 0.80
-        const val MAX_LOG = 100
         const val DEBUG_KEY_PREFIX = "debug-"
         private const val TAG = "ShushlyPipeline"
         private const val DEMO_PACKAGE = "com.demo.testapp"

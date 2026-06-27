@@ -2,6 +2,7 @@
 
 package com.hawwwran.shushly.feature.history
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -21,31 +24,33 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.hawwwran.shushly.core.data.db.DecisionHistoryEntity
 import com.hawwwran.shushly.core.model.Decision
-import com.hawwwran.shushly.core.model.DecisionReasonCode
 import com.hawwwran.shushly.feature.common.OkColor
-import com.hawwwran.shushly.feature.home.HomeViewModel
-import com.hawwwran.shushly.service.listener.DecisionLogEntry
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 @Composable
 fun HistoryScreen(
-    viewModel: HomeViewModel,
+    viewModel: HistoryViewModel,
     onBack: () -> Unit,
+    onOpenDetail: (Long) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val log by viewModel.decisionLog.collectAsState()
+    val entries by viewModel.entries.collectAsState()
+    var showClearDialog by rememberSaveable { mutableStateOf(false) }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
@@ -54,6 +59,13 @@ fun HistoryScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    if (entries.isNotEmpty()) {
+                        IconButton(onClick = { showClearDialog = true }) {
+                            Icon(Icons.Filled.Delete, contentDescription = "Clear history")
+                        }
                     }
                 },
             )
@@ -65,52 +77,69 @@ fun HistoryScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 20.dp),
         ) {
-            Text(
-                text = "Recent decisions (not yet saved across restarts).",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(vertical = 12.dp),
-            )
-            if (log.isEmpty()) {
-                Text("No notifications processed yet.", style = MaterialTheme.typography.bodyMedium)
+            if (entries.isEmpty()) {
+                Text(
+                    text = "No decisions recorded yet.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(vertical = 12.dp),
+                )
             } else {
                 LazyColumn(
                     modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
+                        .fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    items(log) { entry ->
-                        LogRow(entry)
+                    items(entries, key = { it.id }) { entry ->
+                        LogRow(entry, onClick = { onOpenDetail(entry.id) })
                         HorizontalDivider()
                     }
                 }
             }
         }
     }
+
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("Clear history?") },
+            text = { Text("This permanently deletes all recorded decisions.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.clearHistory()
+                    showClearDialog = false
+                }) { Text("Clear") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) { Text("Cancel") }
+            },
+        )
+    }
 }
 
-private val timeFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
-
 @Composable
-private fun LogRow(entry: DecisionLogEntry) {
-    val decisionColor = when (entry.decision) {
+private fun LogRow(entry: DecisionHistoryEntity, onClick: () -> Unit) {
+    val decisionColor = when (entry.decisionOrNull()) {
         Decision.ALERT -> OkColor
         Decision.ERROR -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = decisionLabel(entry.decision),
+                text = decisionLabel(entry),
                 fontWeight = FontWeight.Bold,
                 color = decisionColor,
                 style = MaterialTheme.typography.bodyMedium,
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                text = timeFormatter.format(Instant.ofEpochMilli(entry.timeMs)),
+                text = formatTime(entry.createdAtMs),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -129,38 +158,4 @@ private fun LogRow(entry: DecisionLogEntry) {
             Text(text = it, style = MaterialTheme.typography.bodySmall)
         }
     }
-}
-
-private fun decisionLabel(decision: Decision): String = when (decision) {
-    Decision.ALERT -> "ALERT"
-    Decision.SILENT -> "SILENT"
-    Decision.SKIPPED -> "SKIPPED"
-    Decision.ERROR -> "ERROR"
-    Decision.WOULD_ALERT -> "WOULD ALERT"
-}
-
-/** Renders one entry as a lifecycle: seen -> eligibility -> AI call -> decision. */
-private fun lifecycleText(entry: DecisionLogEntry): String {
-    if (!entry.aiCalled) {
-        val why = when (entry.reasonCode) {
-            DecisionReasonCode.SKIPPED_QUIET_MODE_OFF -> "Smart Quiet Mode off"
-            DecisionReasonCode.SKIPPED_PROTECTED_SOURCE -> "protected source"
-            DecisionReasonCode.SKIPPED_NOT_ELIGIBLE -> "not eligible"
-            DecisionReasonCode.SKIPPED_NO_USABLE_TEXT -> "no usable text"
-            DecisionReasonCode.SKIPPED_DUPLICATE -> "duplicate (AI cooldown)"
-            DecisionReasonCode.SILENT_GROUP_SUMMARY -> "group summary"
-            else -> entry.reasonCode.name.lowercase().replace('_', ' ')
-        }
-        return "seen → stopped: $why → no AI call"
-    }
-    val outcome = when (entry.decision) {
-        Decision.ALERT -> if (entry.wasAlerted) "ALERT → sounded" else "ALERT"
-        Decision.SILENT -> "SILENT"
-        Decision.WOULD_ALERT -> "WOULD ALERT (simulation)"
-        Decision.ERROR -> "ERROR → stayed silent"
-        Decision.SKIPPED ->
-            if (entry.reasonCode == DecisionReasonCode.SKIPPED_RATE_LIMIT) "ALERT but rate-limited (held back)"
-            else "skipped"
-    }
-    return "seen → eligible → AI called → $outcome"
 }

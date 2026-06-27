@@ -18,12 +18,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.hawwwran.shushly.feature.about.AboutScreen
 import com.hawwwran.shushly.feature.common.openAppNotificationSettings
+import com.hawwwran.shushly.feature.history.DecisionDetailScreen
 import com.hawwwran.shushly.feature.history.HistoryScreen
+import com.hawwwran.shushly.feature.history.HistoryViewModel
 import com.hawwwran.shushly.feature.home.HomeScreen
 import com.hawwwran.shushly.feature.home.HomeViewModel
 import com.hawwwran.shushly.feature.onboarding.OnboardingScreen
@@ -65,6 +69,7 @@ private object Routes {
     const val AI_CONNECTION = "ai_connection"
     const val PRIVACY = "privacy"
     const val APP_PICKER = "app_picker"
+    const val DECISION_DETAIL = "decision_detail"
 }
 
 @Composable
@@ -119,7 +124,21 @@ private fun AppNavHost(viewModel: HomeViewModel) {
             )
         }
         composable(Routes.HISTORY) {
-            HistoryScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+            HistoryScreen(
+                viewModel = hiltViewModel<HistoryViewModel>(),
+                onBack = { navController.popBackStack() },
+                onOpenDetail = { id -> navController.navigate("${Routes.DECISION_DETAIL}/$id") },
+            )
+        }
+        composable(
+            route = "${Routes.DECISION_DETAIL}/{id}",
+            arguments = listOf(navArgument("id") { type = NavType.LongType }),
+        ) { backStackEntry ->
+            DecisionDetailScreen(
+                viewModel = hiltViewModel<HistoryViewModel>(),
+                id = backStackEntry.arguments?.getLong("id") ?: 0L,
+                onBack = { navController.popBackStack() },
+            )
         }
         composable(Routes.ABOUT) {
             AboutScreen(onBack = { navController.popBackStack() })
