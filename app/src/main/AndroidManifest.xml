@@ -48,5 +48,17 @@
                 <action android:name="android.service.notification.ConditionProviderService" />
             </intent-filter>
         </service>
+
+        <!-- Quick Settings tile to toggle Smart Quiet Mode. The icon is tinted by the system. -->
+        <service
+            android:name=".service.tile.QuietModeTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_qs_quiet"
+            android:label="Smart Quiet Mode"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

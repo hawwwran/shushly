@@ -4,6 +4,7 @@ import com.hawwwran.shushly.core.data.DecisionHistoryRepository
 import com.hawwwran.shushly.core.data.SettingsRepository
 import com.hawwwran.shushly.service.listener.NotificationPipeline
 import com.hawwwran.shushly.service.quietmode.QuietModeController
+import com.hawwwran.shushly.service.quietmode.SmartQuietModeManager
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
@@ -16,4 +17,5 @@ interface ServiceEntryPoint {
     fun settingsRepository(): SettingsRepository
     fun quietModeController(): QuietModeController
     fun decisionHistoryRepository(): DecisionHistoryRepository
+    fun smartQuietModeManager(): SmartQuietModeManager
 }

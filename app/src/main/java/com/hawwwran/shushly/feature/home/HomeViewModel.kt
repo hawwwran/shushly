@@ -13,8 +13,8 @@ import com.hawwwran.shushly.readiness.ReadinessChecker
 import com.hawwwran.shushly.service.alerting.NotificationChannels
 import com.hawwwran.shushly.service.listener.NotificationPipeline
 import com.hawwwran.shushly.service.quietmode.QuietModeController
-import com.hawwwran.shushly.service.quietmode.QuietModeResult
 import com.hawwwran.shushly.service.quietmode.QuietModeState
+import com.hawwwran.shushly.service.quietmode.SmartQuietModeManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.SharingStarted
@@ -43,6 +43,7 @@ class HomeViewModel @Inject constructor(
     private val quietMode: QuietModeController,
     private val readiness: ReadinessChecker,
     private val pipeline: NotificationPipeline,
+    private val smartQuietMode: SmartQuietModeManager,
 ) : ViewModel() {
 
     val settingsState: StateFlow<AppSettings> = settings.settings
@@ -75,15 +76,7 @@ class HomeViewModel @Inject constructor(
 
     fun setSmartQuietMode(on: Boolean) {
         viewModelScope.launch {
-            if (on) {
-                when (quietMode.enable()) {
-                    is QuietModeResult.Success -> settings.setSmartQuietMode(true)
-                    is QuietModeResult.Unavailable -> settings.setSmartQuietMode(false)
-                }
-            } else {
-                quietMode.disable()
-                settings.setSmartQuietMode(false)
-            }
+            smartQuietMode.setEnabled(on)
             refresh()
         }
     }
