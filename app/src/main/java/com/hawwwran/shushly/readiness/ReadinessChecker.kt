@@ -56,6 +56,27 @@ class ReadinessChecker @Inject constructor(
     fun alarmAudible(): Boolean =
         runCatching { audioManager.getStreamVolume(AudioManager.STREAM_ALARM) > 0 }.getOrDefault(true)
 
+    /** Current device alarm-stream volume level (Shushly's alert rides this lane). */
+    fun alarmVolume(): Int =
+        runCatching { audioManager.getStreamVolume(AudioManager.STREAM_ALARM) }.getOrDefault(0)
+
+    /** Max alarm-stream level; never 0 (a sane fallback so the slider range stays valid). */
+    fun alarmVolumeMax(): Int =
+        runCatching { audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM) }
+            .getOrDefault(DEFAULT_ALARM_MAX)
+            .coerceAtLeast(1)
+
+    /**
+     * Sets the device alarm-stream volume directly. Shushly holds notification-policy access, so this
+     * is permitted even while its own zen rule is active; runCatching guards OEM quirks.
+     */
+    fun setAlarmVolume(level: Int) {
+        runCatching {
+            val max = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM)
+            audioManager.setStreamVolume(AudioManager.STREAM_ALARM, level.coerceIn(0, max), 0)
+        }
+    }
+
     /**
      * Whether Shushly is exempt from battery optimization. Advisory: on aggressive OEMs (FunTouch)
      * Doze can kill the notification-listener binding, so an exemption keeps it alive. Not a hard
@@ -67,4 +88,8 @@ class ReadinessChecker @Inject constructor(
     /** Sound-only alerting needs the listener bound and DND-policy access (for the zen rule). */
     fun minimumRequirementsMet(): Boolean =
         listenerEnabled() && policyAccessGranted()
+
+    private companion object {
+        const val DEFAULT_ALARM_MAX = 7
+    }
 }

@@ -10,7 +10,7 @@ import com.hawwwran.shushly.service.alerting.CriticalAlertSounder
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
-/** Records how often an alert sounded and the last vibrate flag + sound URI + volume passed. */
+/** Records how often an alert sounded and the last vibrate flag + sound URI passed. */
 class RecordingSounder : CriticalAlertSounder {
     var callCount = 0
         private set
@@ -18,14 +18,11 @@ class RecordingSounder : CriticalAlertSounder {
         private set
     var lastSoundUri: String? = null
         private set
-    var lastVolume: Float? = null
-        private set
 
-    override fun playAlert(vibrate: Boolean, soundUri: String?, volume: Float) {
+    override fun playAlert(vibrate: Boolean, soundUri: String?) {
         callCount++
         lastVibrate = vibrate
         lastSoundUri = soundUri
-        lastVolume = volume
     }
 }
 

@@ -15,7 +15,6 @@ class FakeSettingsRepository(var current: AppSettings = AppSettings()) : Setting
     override suspend fun setSmartQuietMode(enabled: Boolean) {}
     override suspend fun setVibrate(enabled: Boolean) {}
     override suspend fun setAlertSound(uri: String?) {}
-    override suspend fun setAlertVolume(volume: Float) {}
     override suspend fun setSimulationMode(enabled: Boolean) {}
     override suspend fun setEligibilityMode(mode: EligibilityMode) {}
     override suspend fun setSelectedPackages(packages: Set<String>) {}

@@ -135,10 +135,11 @@ fun HomeScreen(
                 enabled = readiness.minimumMet,
                 smartQuietOn = settings.smartQuietModeEnabled,
                 vibrate = settings.vibrateForCriticalAlerts,
-                alertVolume = settings.alertVolume,
+                alarmVolume = readiness.alarmVolume,
+                alarmVolumeMax = readiness.alarmVolumeMax,
                 onSmartQuietChange = viewModel::setSmartQuietMode,
                 onVibrateChange = viewModel::setVibrate,
-                onAlertVolumeChange = viewModel::setAlertVolume,
+                onAlarmVolumeChange = viewModel::setAlertVolume,
             )
 
             AlertSoundCard(
@@ -315,10 +316,11 @@ private fun MasterToggleCard(
     enabled: Boolean,
     smartQuietOn: Boolean,
     vibrate: Boolean,
-    alertVolume: Float,
+    alarmVolume: Int,
+    alarmVolumeMax: Int,
     onSmartQuietChange: (Boolean) -> Unit,
     onVibrateChange: (Boolean) -> Unit,
-    onAlertVolumeChange: (Float) -> Unit,
+    onAlarmVolumeChange: (Int) -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -338,25 +340,27 @@ private fun MasterToggleCard(
                 Switch(checked = vibrate, onCheckedChange = onVibrateChange)
             }
             HorizontalDivider()
-            // Local slider state; persist on release (not every drag tick). Re-syncs if the stored
-            // value changes (keyed remember).
-            var volume by remember(alertVolume) { mutableStateOf(alertVolume) }
+            // Slider snaps to the device's discrete alarm levels (0..max). Local state during drag;
+            // persist on release. Re-syncs when the live alarm volume changes (keyed remember).
+            val max = alarmVolumeMax.coerceAtLeast(1)
+            var level by remember(alarmVolume) { mutableStateOf(alarmVolume.toFloat()) }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Alert volume", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    text = "${(volume * 100).roundToInt()}%",
+                    text = "${level.roundToInt() * 100 / max}%",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Slider(
-                value = volume,
-                onValueChange = { volume = it },
-                onValueChangeFinished = { onAlertVolumeChange(volume) },
-                valueRange = 0f..1f,
+                value = level,
+                onValueChange = { level = it },
+                onValueChangeFinished = { onAlarmVolumeChange(level.roundToInt()) },
+                valueRange = 0f..max.toFloat(),
+                steps = (max - 1).coerceAtLeast(0),
             )
             Text(
-                text = "How loud Shushly's alert is, within your device's alarm volume.",
+                text = "This is your phone's alarm volume — your alarms and timers use it too.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

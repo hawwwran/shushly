@@ -27,11 +27,10 @@ interface CriticalAlertSounder {
     /**
      * Plays the alert tone on the alarm lane; also vibrates (alarm usage) when [vibrate] is true.
      * [soundUri] is the chosen tone (a parseable content/resource URI string); null — or anything
-     * that fails to resolve — falls back to the system default. Always plays on USAGE_ALARM.
-     * [volume] is a per-playback multiplier (0..1) within the device alarm volume — it never changes
-     * the global alarm stream.
+     * that fails to resolve — falls back to the system default. Always plays on USAGE_ALARM, at the
+     * device's alarm-stream volume (which the Home slider controls directly).
      */
-    fun playAlert(vibrate: Boolean, soundUri: String?, volume: Float)
+    fun playAlert(vibrate: Boolean, soundUri: String?)
 }
 
 @Singleton
@@ -57,12 +56,12 @@ class CriticalAlertSounderImpl @Inject constructor(
     @Volatile private var cachedKey: String? = null
 
     @Synchronized
-    override fun playAlert(vibrate: Boolean, soundUri: String?, volume: Float) {
-        playTone(soundUri, volume)
+    override fun playAlert(vibrate: Boolean, soundUri: String?) {
+        playTone(soundUri)
         if (vibrate) vibrate()
     }
 
-    private fun playTone(soundUri: String?, volume: Float) {
+    private fun playTone(soundUri: String?) {
         try {
             val rt = ensureRingtone(soundUri)
             if (rt == null) {
@@ -70,8 +69,7 @@ class CriticalAlertSounderImpl @Inject constructor(
                 return
             }
             rt.audioAttributes = alarmAudioAttributes
-            // Per-playback multiplier within the alarm stream; does NOT change the global alarm volume.
-            rt.volume = volume.coerceIn(0f, 1f)
+            // Plays at the device alarm-stream volume by default (the Home slider sets that directly).
             if (rt.isPlaying) rt.stop()
             rt.play()
         } catch (t: Throwable) {

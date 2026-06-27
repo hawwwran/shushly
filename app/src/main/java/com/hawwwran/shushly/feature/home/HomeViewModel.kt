@@ -31,6 +31,8 @@ data class ReadinessUi(
     val postNotificationsGranted: Boolean = false,
     val alarmAudible: Boolean = false,
     val batteryOptimizationExempt: Boolean = true,
+    val alarmVolume: Int = 0,
+    val alarmVolumeMax: Int = 1,
 ) {
     // Sound-only minimum: listener + DND-policy access. postNotificationsGranted, alarmAudible, and
     // batteryOptimizationExempt are advisory, not blocking.
@@ -75,6 +77,8 @@ class HomeViewModel @Inject constructor(
             postNotificationsGranted = readiness.postNotificationsGranted(),
             alarmAudible = readiness.alarmAudible(),
             batteryOptimizationExempt = readiness.batteryOptimizationExempt(),
+            alarmVolume = readiness.alarmVolume(),
+            alarmVolumeMax = readiness.alarmVolumeMax(),
         )
     }
 
@@ -93,15 +97,17 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { settings.setAlertSound(uri) }
     }
 
-    fun setAlertVolume(volume: Float) {
-        viewModelScope.launch { settings.setAlertVolume(volume) }
+    /** Sets the device alarm-stream volume directly, then refreshes so the slider reflects it. */
+    fun setAlertVolume(level: Int) {
+        readiness.setAlarmVolume(level)
+        refresh()
     }
 
-    /** Plays the currently-configured alert sound at the configured loudness, so the user can hear it. */
+    /** Plays the currently-configured alert sound; it rides the alarm stream, so this is the true loudness. */
     fun previewAlertSound() {
         viewModelScope.launch {
             val s = settings.snapshot()
-            sounder.playAlert(s.vibrateForCriticalAlerts, s.alertSoundUri, s.alertVolume)
+            sounder.playAlert(s.vibrateForCriticalAlerts, s.alertSoundUri)
         }
     }
 

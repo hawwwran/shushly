@@ -288,14 +288,13 @@ class NotificationPipelineTest {
     }
 
     @Test
-    fun aiAlert_passesConfiguredSoundUriAndVolumeToSounder() = runTest {
+    fun aiAlert_passesConfiguredSoundUriToSounder() = runTest {
         val uri = "content://media/internal/audio/media/42"
-        val h = Harness(settings(alertSound = uri, alertVolume = 0.4f), ProgrammableClassifier(alert(0.95)))
+        val h = Harness(settings(alertSound = uri), ProgrammableClassifier(alert(0.95)))
         h.pipeline.processExtracted(extracted())
 
         assertEquals(1, h.sounder.callCount)
         assertEquals(uri, h.sounder.lastSoundUri)
-        assertEquals(0.4f, h.sounder.lastVolume!!, 0.0001f)
     }
 
     @Test
@@ -331,7 +330,6 @@ private fun settings(
     selected: Set<String> = emptySet(),
     always: Set<String> = emptySet(),
     alertSound: String? = null,
-    alertVolume: Float = 1.0f,
 ): SettingsRepository = FakeSettingsRepository(
     AppSettings(
         smartQuietModeEnabled = smartQuiet,
@@ -341,7 +339,6 @@ private fun settings(
         selectedPackages = selected,
         alwaysAlertPackages = always,
         alertSoundUri = alertSound,
-        alertVolume = alertVolume,
     ),
 )
 
