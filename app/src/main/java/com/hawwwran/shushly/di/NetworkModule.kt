@@ -31,15 +31,21 @@ object NetworkModule {
     fun provideOkHttpClient(
         interceptors: Set<@JvmSuppressWildcards Interceptor>,
     ): OkHttpClient {
+        // Read/call timeouts exceed the relay's own 8s OpenAI-client timeout x maxRetries (~16s worst
+        // case), plus first-call cold-start: a valid late alert must arrive before we give up. Past
+        // the call timeout the pipeline still fails safe to silent.
         val builder = OkHttpClient.Builder()
-            .connectTimeout(RELAY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .readTimeout(RELAY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-            .writeTimeout(RELAY_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .writeTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .callTimeout(CALL_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         interceptors.forEach(builder::addInterceptor)
         return builder.build()
     }
 
-    private const val RELAY_TIMEOUT_SECONDS = 10L
+    private const val CONNECT_TIMEOUT_SECONDS = 10L
+    private const val READ_TIMEOUT_SECONDS = 20L
+    private const val CALL_TIMEOUT_SECONDS = 25L
 }
 
 /**
