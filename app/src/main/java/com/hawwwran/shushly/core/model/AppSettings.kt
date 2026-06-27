@@ -6,6 +6,8 @@ package com.hawwwran.shushly.core.model
  */
 data class AppSettings(
     val smartQuietModeEnabled: Boolean = false,
+    /** Sub-option of Smart Quiet Mode: only act while the phone is locked/away. */
+    val activeWhenLocked: Boolean = true,
     val vibrateForCriticalAlerts: Boolean = true,
     /** URI of the chosen alert tone; null = the system default notification tone. */
     val alertSoundUri: String? = null,

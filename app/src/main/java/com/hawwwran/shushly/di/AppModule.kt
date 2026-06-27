@@ -14,6 +14,8 @@ import com.hawwwran.shushly.service.ai.AiClassifier
 import com.hawwwran.shushly.service.ai.RoutingAiClassifier
 import com.hawwwran.shushly.service.alerting.CriticalAlertSounder
 import com.hawwwran.shushly.service.alerting.CriticalAlertSounderImpl
+import com.hawwwran.shushly.service.quietmode.LockStateProvider
+import com.hawwwran.shushly.service.quietmode.LockStateProviderImpl
 import com.hawwwran.shushly.service.quietmode.QuietModeController
 import com.hawwwran.shushly.service.quietmode.ZenRuleQuietModeController
 import dagger.Binds
@@ -46,6 +48,9 @@ abstract class AppModule {
 
     @Binds
     abstract fun bindQuietModeController(impl: ZenRuleQuietModeController): QuietModeController
+
+    @Binds
+    abstract fun bindLockStateProvider(impl: LockStateProviderImpl): LockStateProvider
 
     @Binds
     abstract fun bindInstalledAppRepository(impl: InstalledAppRepositoryImpl): InstalledAppRepository

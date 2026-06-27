@@ -30,6 +30,7 @@ class NotificationPipelineTest {
         settings: SettingsRepository,
         classifier: AiClassifier,
         val dedupe: DedupeRateLimiter = DedupeRateLimiter(),
+        val lockState: FakeLockStateProvider = FakeLockStateProvider(inUse = false),
     ) {
         val sounder = RecordingSounder()
         val history = RecordingHistoryRepository()
@@ -42,6 +43,7 @@ class NotificationPipelineTest {
             sounder = sounder,
             seenApps = FakeSeenAppsRepository(),
             history = history,
+            lockState = lockState,
         )
     }
 
@@ -211,6 +213,71 @@ class NotificationPipelineTest {
         assertEquals(1, h.sounder.callCount) // only the first sounded
     }
 
+    // --- Active when locked (in-use gate) ---
+
+    @Test
+    fun phoneInUse_withActiveWhenLocked_skipsStoodAside_noAi() = runTest {
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(
+            settings(activeWhenLocked = true),
+            classifier,
+            lockState = FakeLockStateProvider(inUse = true),
+        )
+        h.pipeline.processExtracted(extracted())
+
+        assertEquals(Decision.SKIPPED.name, h.history.last?.decision)
+        assertEquals(DecisionReasonCode.SKIPPED_PHONE_IN_USE.name, h.history.last?.reasonCode)
+        assertEquals(0, h.sounder.callCount)
+        assertFalse(h.history.last!!.aiCalled)
+        assertEquals(0, classifier.callCount)
+    }
+
+    @Test
+    fun notInUse_withActiveWhenLocked_proceedsToAi() = runTest {
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(
+            settings(activeWhenLocked = true),
+            classifier,
+            lockState = FakeLockStateProvider(inUse = false),
+        )
+        h.pipeline.processExtracted(extracted())
+
+        assertEquals(Decision.ALERT.name, h.history.last?.decision)
+        assertEquals(1, classifier.callCount)
+    }
+
+    @Test
+    fun phoneInUse_butActiveWhenLockedOff_proceedsToAi() = runTest {
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(
+            settings(activeWhenLocked = false),
+            classifier,
+            lockState = FakeLockStateProvider(inUse = true),
+        )
+        h.pipeline.processExtracted(extracted())
+
+        assertEquals(Decision.ALERT.name, h.history.last?.decision)
+        assertEquals(1, classifier.callCount)
+    }
+
+    @Test
+    fun lockState_isReReadPerNotification() = runTest {
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val lock = FakeLockStateProvider(inUse = true)
+        val h = Harness(settings(activeWhenLocked = true), classifier, lockState = lock)
+
+        // In use → stood aside.
+        h.pipeline.processExtracted(extracted(key = "k1"))
+        assertEquals(DecisionReasonCode.SKIPPED_PHONE_IN_USE.name, h.history.last?.reasonCode)
+        assertEquals(0, classifier.callCount)
+
+        // Flip live → next notification reaches the AI (no cached isInUse()).
+        lock.inUse = false
+        h.pipeline.processExtracted(extracted(key = "k2"))
+        assertEquals(Decision.ALERT.name, h.history.last?.decision)
+        assertEquals(1, classifier.callCount)
+    }
+
     // --- Always alert ---
 
     @Test
@@ -330,9 +397,11 @@ private fun settings(
     selected: Set<String> = emptySet(),
     always: Set<String> = emptySet(),
     alertSound: String? = null,
+    activeWhenLocked: Boolean = true,
 ): SettingsRepository = FakeSettingsRepository(
     AppSettings(
         smartQuietModeEnabled = smartQuiet,
+        activeWhenLocked = activeWhenLocked,
         simulationModeEnabled = simulation,
         vibrateForCriticalAlerts = vibrate,
         eligibilityMode = eligibilityMode,

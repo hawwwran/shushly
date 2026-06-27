@@ -7,6 +7,7 @@ import com.hawwwran.shushly.core.model.ClassificationRequest
 import com.hawwwran.shushly.core.model.ClassificationResult
 import com.hawwwran.shushly.service.ai.AiClassifier
 import com.hawwwran.shushly.service.alerting.CriticalAlertSounder
+import com.hawwwran.shushly.service.quietmode.LockStateProvider
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
@@ -24,6 +25,11 @@ class RecordingSounder : CriticalAlertSounder {
         lastVibrate = vibrate
         lastSoundUri = soundUri
     }
+}
+
+/** Controllable lock state for the pipeline gate. */
+class FakeLockStateProvider(var inUse: Boolean = false) : LockStateProvider {
+    override fun isInUse(): Boolean = inUse
 }
 
 /** No-op seen-apps tracking (the pipeline records but never reads it in these tests). */

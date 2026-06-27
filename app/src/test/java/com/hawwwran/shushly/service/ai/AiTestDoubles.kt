@@ -12,7 +12,14 @@ import kotlinx.coroutines.flow.flowOf
 class FakeSettingsRepository(var current: AppSettings = AppSettings()) : SettingsRepository {
     override val settings: Flow<AppSettings> get() = flowOf(current)
     override suspend fun snapshot(): AppSettings = current
-    override suspend fun setSmartQuietMode(enabled: Boolean) {}
+    // These two actually mutate the snapshot so manager tests can assert persistence + so reconcile()
+    // reads the just-set value. The rest stay no-ops (not exercised).
+    override suspend fun setSmartQuietMode(enabled: Boolean) {
+        current = current.copy(smartQuietModeEnabled = enabled)
+    }
+    override suspend fun setActiveWhenLocked(on: Boolean) {
+        current = current.copy(activeWhenLocked = on)
+    }
     override suspend fun setVibrate(enabled: Boolean) {}
     override suspend fun setAlertSound(uri: String?) {}
     override suspend fun setSimulationMode(enabled: Boolean) {}

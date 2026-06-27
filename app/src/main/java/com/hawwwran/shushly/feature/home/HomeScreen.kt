@@ -157,10 +157,12 @@ fun HomeScreen(
             MasterToggleCard(
                 enabled = readiness.minimumMet,
                 smartQuietOn = settings.smartQuietModeEnabled,
+                activeWhenLocked = settings.activeWhenLocked,
                 vibrate = settings.vibrateForCriticalAlerts,
                 alarmVolume = readiness.alarmVolume,
                 alarmVolumeMax = readiness.alarmVolumeMax,
                 onSmartQuietChange = viewModel::setSmartQuietMode,
+                onActiveWhenLockedChange = viewModel::setActiveWhenLocked,
                 onVibrateChange = viewModel::setVibrate,
                 onAlarmVolumeChange = viewModel::setAlertVolume,
             )
@@ -338,10 +340,12 @@ private fun ReadinessRow(label: String, satisfied: Boolean, onFix: () -> Unit) {
 private fun MasterToggleCard(
     enabled: Boolean,
     smartQuietOn: Boolean,
+    activeWhenLocked: Boolean,
     vibrate: Boolean,
     alarmVolume: Int,
     alarmVolumeMax: Int,
     onSmartQuietChange: (Boolean) -> Unit,
+    onActiveWhenLockedChange: (Boolean) -> Unit,
     onVibrateChange: (Boolean) -> Unit,
     onAlarmVolumeChange: (Int) -> Unit,
 ) {
@@ -356,6 +360,18 @@ private fun MasterToggleCard(
                     )
                 }
                 Switch(checked = smartQuietOn, onCheckedChange = onSmartQuietChange, enabled = enabled)
+            }
+            HorizontalDivider()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Active when locked", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        text = "When on, Shushly only steps in while your phone is locked. If you're using the phone, notifications behave normally.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = activeWhenLocked, onCheckedChange = onActiveWhenLockedChange)
             }
             HorizontalDivider()
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -13,6 +13,7 @@ import com.hawwwran.shushly.core.model.ExtractedNotification
 import com.hawwwran.shushly.core.policy.ProtectedSourcePolicy
 import com.hawwwran.shushly.service.ai.AiClassifier
 import com.hawwwran.shushly.service.alerting.CriticalAlertSounder
+import com.hawwwran.shushly.service.quietmode.LockStateProvider
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,6 +36,7 @@ class NotificationPipeline @Inject constructor(
     private val sounder: CriticalAlertSounder,
     private val seenApps: SeenAppsRepository,
     private val history: DecisionHistoryRepository,
+    private val lockState: LockStateProvider,
 ) {
 
     suspend fun process(sbn: StatusBarNotification, appLabel: String) {
@@ -71,6 +73,12 @@ class NotificationPipeline @Inject constructor(
 
         if (!s.smartQuietModeEnabled) {
             record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_QUIET_MODE_OFF, "Smart Quiet Mode is off", aiCalled = false, wasAlerted = false)
+            return
+        }
+        // Active-when-locked: while the phone is in use, Shushly fully stands aside (its zen rule is
+        // off, so notifications behave normally) — no AI call, no re-alert stacked on top.
+        if (s.activeWhenLocked && lockState.isInUse()) {
+            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_PHONE_IN_USE, "Phone in use — Shushly stood aside", aiCalled = false, wasAlerted = false)
             return
         }
         if (ProtectedSourcePolicy.isProtected(e)) {

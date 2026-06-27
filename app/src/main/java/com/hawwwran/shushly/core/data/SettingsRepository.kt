@@ -30,6 +30,7 @@ interface SettingsRepository {
     val settings: Flow<AppSettings>
     suspend fun snapshot(): AppSettings
     suspend fun setSmartQuietMode(enabled: Boolean)
+    suspend fun setActiveWhenLocked(on: Boolean)
     suspend fun setVibrate(enabled: Boolean)
     suspend fun setAlertSound(uri: String?)
     suspend fun setSimulationMode(enabled: Boolean)
@@ -53,6 +54,7 @@ class SettingsRepositoryImpl @Inject constructor(
 ) : SettingsRepository {
     private object Keys {
         val SMART_QUIET = booleanPreferencesKey("smart_quiet_enabled")
+        val ACTIVE_WHEN_LOCKED = booleanPreferencesKey("active_when_locked")
         val VIBRATE = booleanPreferencesKey("vibrate_critical")
         val ALERT_SOUND_URI = stringPreferencesKey("alert_sound_uri")
         val SIMULATION = booleanPreferencesKey("simulation_enabled")
@@ -76,6 +78,9 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setSmartQuietMode(enabled: Boolean) =
         edit { it[Keys.SMART_QUIET] = enabled }
+
+    override suspend fun setActiveWhenLocked(on: Boolean) =
+        edit { it[Keys.ACTIVE_WHEN_LOCKED] = on }
 
     override suspend fun setVibrate(enabled: Boolean) =
         edit { it[Keys.VIBRATE] = enabled }
@@ -130,6 +135,7 @@ class SettingsRepositoryImpl @Inject constructor(
 
     private fun Preferences.toAppSettings(): AppSettings = AppSettings(
         smartQuietModeEnabled = this[Keys.SMART_QUIET] ?: false,
+        activeWhenLocked = this[Keys.ACTIVE_WHEN_LOCKED] ?: true,
         vibrateForCriticalAlerts = this[Keys.VIBRATE] ?: true,
         alertSoundUri = this[Keys.ALERT_SOUND_URI],
         simulationModeEnabled = this[Keys.SIMULATION] ?: false,
