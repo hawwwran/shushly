@@ -8,6 +8,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -30,6 +31,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -42,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.hawwwran.shushly.core.model.EligibilityMode
 import com.hawwwran.shushly.feature.common.OkColor
 import com.hawwwran.shushly.feature.common.openAppNotificationSettings
 import com.hawwwran.shushly.feature.common.startSafely
@@ -51,6 +54,7 @@ fun HomeScreen(
     viewModel: HomeViewModel,
     onOpenSettings: () -> Unit,
     onOpenHistory: () -> Unit,
+    onChooseApps: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -107,6 +111,13 @@ fun HomeScreen(
                 vibrate = settings.vibrateForCriticalAlerts,
                 onSmartQuietChange = viewModel::setSmartQuietMode,
                 onVibrateChange = viewModel::setVibrate,
+            )
+
+            EligibilityCard(
+                mode = settings.eligibilityMode,
+                selectedCount = settings.selectedPackages.size,
+                onModeChange = viewModel::setEligibilityMode,
+                onChooseApps = onChooseApps,
             )
 
             DebugCard(
@@ -186,6 +197,50 @@ private fun MasterToggleCard(
                 Switch(checked = vibrate, onCheckedChange = onVibrateChange)
             }
         }
+    }
+}
+
+@Composable
+private fun EligibilityCard(
+    mode: EligibilityMode,
+    selectedCount: Int,
+    onModeChange: (EligibilityMode) -> Unit,
+    onChooseApps: () -> Unit,
+) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("AI may re-alert for", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            ModeOption(
+                label = "Selected apps",
+                selected = mode == EligibilityMode.SELECTED_APPS,
+                onClick = { onModeChange(EligibilityMode.SELECTED_APPS) },
+            )
+            ModeOption(
+                label = "All apps except selected",
+                selected = mode == EligibilityMode.ALL_APPS_EXCEPT_SELECTED,
+                onClick = { onModeChange(EligibilityMode.ALL_APPS_EXCEPT_SELECTED) },
+            )
+            Text(
+                text = "$selectedCount ${if (selectedCount == 1) "app" else "apps"} selected",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            OutlinedButton(onClick = onChooseApps) { Text("Choose apps") }
+        }
+    }
+}
+
+@Composable
+private fun ModeOption(label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = onClick)
+        Spacer(Modifier.width(8.dp))
+        Text(label, style = MaterialTheme.typography.bodyMedium)
     }
 }
 

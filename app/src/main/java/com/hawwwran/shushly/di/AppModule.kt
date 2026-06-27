@@ -1,5 +1,7 @@
 package com.hawwwran.shushly.di
 
+import com.hawwwran.shushly.core.data.InstalledAppRepository
+import com.hawwwran.shushly.core.data.InstalledAppRepositoryImpl
 import com.hawwwran.shushly.service.ai.AiClassifier
 import com.hawwwran.shushly.service.ai.FakeAiClassifier
 import com.hawwwran.shushly.service.alerting.CriticalAlertSounder
@@ -24,4 +26,7 @@ abstract class AppModule {
 
     @Binds
     abstract fun bindQuietModeController(impl: ZenRuleQuietModeController): QuietModeController
+
+    @Binds
+    abstract fun bindInstalledAppRepository(impl: InstalledAppRepositoryImpl): InstalledAppRepository
 }

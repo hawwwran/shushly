@@ -17,6 +17,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -26,6 +27,8 @@ import com.hawwwran.shushly.feature.history.HistoryScreen
 import com.hawwwran.shushly.feature.home.HomeScreen
 import com.hawwwran.shushly.feature.home.HomeViewModel
 import com.hawwwran.shushly.feature.onboarding.OnboardingScreen
+import com.hawwwran.shushly.feature.picker.AppPickerScreen
+import com.hawwwran.shushly.feature.picker.PickerViewModel
 import com.hawwwran.shushly.feature.settings.SettingsScreen
 import com.hawwwran.shushly.feature.settings.StubScreen
 import dagger.hilt.android.AndroidEntryPoint
@@ -61,6 +64,7 @@ private object Routes {
     const val ABOUT = "about"
     const val AI_CONNECTION = "ai_connection"
     const val PRIVACY = "privacy"
+    const val APP_PICKER = "app_picker"
 }
 
 @Composable
@@ -95,6 +99,13 @@ private fun AppNavHost(viewModel: HomeViewModel) {
                 viewModel = viewModel,
                 onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                 onOpenHistory = { navController.navigate(Routes.HISTORY) },
+                onChooseApps = { navController.navigate(Routes.APP_PICKER) },
+            )
+        }
+        composable(Routes.APP_PICKER) {
+            AppPickerScreen(
+                viewModel = hiltViewModel<PickerViewModel>(),
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.SETTINGS) {

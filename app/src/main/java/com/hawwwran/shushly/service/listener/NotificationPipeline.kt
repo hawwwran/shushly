@@ -2,6 +2,7 @@ package com.hawwwran.shushly.service.listener
 
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import com.hawwwran.shushly.core.data.SeenAppsRepository
 import com.hawwwran.shushly.core.data.SettingsRepository
 import com.hawwwran.shushly.core.model.ClassificationRequest
 import com.hawwwran.shushly.core.model.Decision
@@ -46,6 +47,7 @@ class NotificationPipeline @Inject constructor(
     private val dedupe: DedupeRateLimiter,
     private val classifier: AiClassifier,
     private val sounder: CriticalAlertSounder,
+    private val seenApps: SeenAppsRepository,
 ) {
     private val _log = MutableStateFlow<List<DecisionLogEntry>>(emptyList())
     val log: StateFlow<List<DecisionLogEntry>> = _log.asStateFlow()
@@ -74,6 +76,12 @@ class NotificationPipeline @Inject constructor(
     }
 
     suspend fun processExtracted(e: ExtractedNotification) {
+        // Learn which apps notify (feeds the picker's "Most used apps"), even while Quiet Mode is
+        // off. Exclude the synthesized debug path so TEST_ALERT/TEST_SILENT don't pollute the list.
+        if (!e.notificationKey.startsWith(DEBUG_KEY_PREFIX) && e.packageName != DEMO_PACKAGE) {
+            seenApps.record(e.packageName)
+        }
+
         val s = settings.snapshot()
 
         if (!s.smartQuietModeEnabled) {

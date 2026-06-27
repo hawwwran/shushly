@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- App picker inventory of launchable apps. Play-release strategy (spec §18) is still open;
+         usage is isolated behind InstalledAppRepository and never leaves the device. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
 
     <application
         android:name=".ShushlyApp"

@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hawwwran.shushly.core.data.SettingsRepository
 import com.hawwwran.shushly.core.model.AppSettings
+import com.hawwwran.shushly.core.model.EligibilityMode
 import com.hawwwran.shushly.readiness.ReadinessChecker
 import com.hawwwran.shushly.service.alerting.NotificationChannels
 import com.hawwwran.shushly.service.listener.DecisionLogEntry
@@ -92,6 +93,10 @@ class HomeViewModel @Inject constructor(
 
     fun setVibrate(enabled: Boolean) {
         viewModelScope.launch { settings.setVibrate(enabled) }
+    }
+
+    fun setEligibilityMode(mode: EligibilityMode) {
+        viewModelScope.launch { settings.setEligibilityMode(mode) }
     }
 
     fun completeOnboarding() {
