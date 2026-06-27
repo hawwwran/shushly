@@ -3,6 +3,7 @@ package com.hawwwran.shushly.di
 import android.content.Context
 import androidx.room.Room
 import com.hawwwran.shushly.core.data.db.DecisionHistoryDao
+import com.hawwwran.shushly.core.data.db.MIGRATION_1_2
 import com.hawwwran.shushly.core.data.db.ShushlyDatabase
 import dagger.Module
 import dagger.Provides
@@ -19,7 +20,9 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): ShushlyDatabase =
-        Room.databaseBuilder(context, ShushlyDatabase::class.java, "shushly.db").build()
+        Room.databaseBuilder(context, ShushlyDatabase::class.java, "shushly.db")
+            .addMigrations(MIGRATION_1_2)
+            .build()
 
     @Provides
     @Singleton

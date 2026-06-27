@@ -15,6 +15,7 @@ interface DecisionHistoryRepository {
     suspend fun record(entity: DecisionHistoryEntity)
     fun observeRecent(limit: Int = DEFAULT_LIMIT): Flow<List<DecisionHistoryEntity>>
     suspend fun getById(id: Long): DecisionHistoryEntity?
+    suspend fun setFeedback(id: Long, feedback: String?)
     suspend fun clearAll()
     suspend fun purgeOlderThan(cutoffMs: Long): Int
 
@@ -36,6 +37,10 @@ class DecisionHistoryRepositoryImpl @Inject constructor(
         dao.observeRecent(limit)
 
     override suspend fun getById(id: Long): DecisionHistoryEntity? = dao.getById(id)
+
+    override suspend fun setFeedback(id: Long, feedback: String?) {
+        dao.setFeedback(id, feedback)
+    }
 
     override suspend fun clearAll() {
         dao.clearAll()

@@ -40,6 +40,10 @@ class RecordingHistoryRepository : DecisionHistoryRepository {
 
     override fun observeRecent(limit: Int): Flow<List<DecisionHistoryEntity>> = flowOf(recorded.toList())
     override suspend fun getById(id: Long): DecisionHistoryEntity? = recorded.firstOrNull { it.id == id }
+    override suspend fun setFeedback(id: Long, feedback: String?) {
+        val i = recorded.indexOfFirst { it.id == id }
+        if (i >= 0) recorded[i] = recorded[i].copy(userFeedback = feedback)
+    }
     override suspend fun clearAll() {
         recorded.clear()
     }

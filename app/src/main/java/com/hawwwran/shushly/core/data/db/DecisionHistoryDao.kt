@@ -17,6 +17,9 @@ interface DecisionHistoryDao {
     @Query("SELECT * FROM decision_history WHERE id = :id")
     suspend fun getById(id: Long): DecisionHistoryEntity?
 
+    @Query("UPDATE decision_history SET userFeedback = :feedback WHERE id = :id")
+    suspend fun setFeedback(id: Long, feedback: String?)
+
     @Query("DELETE FROM decision_history WHERE createdAtMs < :cutoffMs")
     suspend fun deleteOlderThan(cutoffMs: Long): Int
 

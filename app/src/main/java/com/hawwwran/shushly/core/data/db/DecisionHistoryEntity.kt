@@ -21,4 +21,6 @@ data class DecisionHistoryEntity(
     val userVisibleReason: String?,
     val aiCalled: Boolean,
     val wasAlerted: Boolean,
+    // Local-only user feedback (§14.3): null / "SHOULD_ALERT" / "SHOULD_SILENT". Added in schema v2.
+    val userFeedback: String? = null,
 )
