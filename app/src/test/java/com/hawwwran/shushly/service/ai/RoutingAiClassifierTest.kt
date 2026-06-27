@@ -1,6 +1,6 @@
 package com.hawwwran.shushly.service.ai
 
-import com.hawwwran.shushly.core.data.DeviceTokenStore
+import com.hawwwran.shushly.core.data.ApiKeyStore
 import com.hawwwran.shushly.core.model.AiConnectionState
 import com.hawwwran.shushly.core.model.AppSettings
 import com.hawwwran.shushly.core.model.ClassificationRequest
@@ -27,15 +27,15 @@ class RoutingAiClassifierTest {
         postedAt = Instant.parse("2026-06-27T12:00:00Z"),
     )
 
-    private val alertResult = ClassificationResult(
+    private val directResult = ClassificationResult(
         decision = Decision.ALERT,
         confidence = 0.99,
         reasonCode = DecisionReasonCode.ALERT_WORK_INCIDENT,
-        userVisibleReason = "relay",
-        modelName = "relay-model",
+        userVisibleReason = "direct",
+        modelName = "gpt-4.1-mini",
         latencyMs = 1,
     )
-    private val silentResult = ClassificationResult(
+    private val fakeResult = ClassificationResult(
         decision = Decision.SILENT,
         confidence = 0.5,
         reasonCode = DecisionReasonCode.SILENT_ROUTINE,
@@ -44,9 +44,8 @@ class RoutingAiClassifierTest {
         latencyMs = 0,
     )
 
-    /** Records which branch was taken without doing real work. */
-    private class StubRelay(private val result: ClassificationResult) :
-        RelayAiClassifier(OkHttpClient(), Json {}, FakeSettingsRepository(), FakeDeviceTokenStore()) {
+    private class StubDirect(private val result: ClassificationResult) :
+        DirectAiClassifier(FakeSettingsRepository(), FakeApiKeyStore(), OpenAiProvider(OkHttpClient(), Json {}, "https://api.openai.com")) {
         var called = false
         override suspend fun classify(request: ClassificationRequest): ClassificationResult {
             called = true
@@ -62,93 +61,65 @@ class RoutingAiClassifierTest {
         }
     }
 
+    private fun verified() = FakeSettingsRepository(
+        AppSettings(aiConnection = AiConnectionState(isVerified = true)),
+    )
+
     @Test
-    fun relayConfigured_routesToRelay() = runTest {
-        val relay = StubRelay(alertResult)
-        val fake = StubFake(silentResult)
-        val settings = FakeSettingsRepository(
-            AppSettings(
-                aiConnection = AiConnectionState(relayBaseUrl = "https://relay.example", isVerified = true),
-            ),
-        )
-        val router = RoutingAiClassifier(fake, relay, settings, FakeDeviceTokenStore("tok"))
+    fun keySetAndVerified_routesToDirect() = runTest {
+        val direct = StubDirect(directResult)
+        val fake = StubFake(fakeResult)
+        val router = RoutingAiClassifier(fake, direct, verified(), FakeApiKeyStore("sk-test"))
 
         val result = router.classify(request)
 
-        assertTrue(relay.called)
+        assertTrue(direct.called)
         assertFalse(fake.called)
         assertEquals(Decision.ALERT, result.decision)
-        assertEquals("relay-model", result.modelName)
+        assertEquals("gpt-4.1-mini", result.modelName)
     }
 
     @Test
-    fun notConfigured_debugUsesFake() = runTest {
-        val relay = StubRelay(alertResult)
-        val fake = StubFake(silentResult)
-        val settings = FakeSettingsRepository(AppSettings()) // no relayBaseUrl
-        val router = RoutingAiClassifier(fake, relay, settings, FakeDeviceTokenStore(null))
+    fun keySetButNotVerified_debugUsesFake() = runTest {
+        val direct = StubDirect(directResult)
+        val fake = StubFake(fakeResult)
+        // isVerified = false (default) even though a key is present.
+        val router = RoutingAiClassifier(fake, direct, FakeSettingsRepository(), FakeApiKeyStore("sk-test"))
 
         val result = router.classify(request)
 
-        assertFalse(relay.called)
+        assertFalse(direct.called)
         assertTrue(fake.called)
         assertEquals(Decision.SILENT, result.decision)
     }
 
     @Test
-    fun blankBaseUrl_neverReadsTokenStore_routesToFake() = runTest {
-        // A token store that fails (e.g. Keystore init error) must not be touched when no relay
-        // base URL is configured — the debug fake path stays intact.
-        val throwingStore = object : DeviceTokenStore {
-            override suspend fun get(): String? = throw IllegalStateException("keystore unavailable")
-            override suspend fun set(token: String?) {}
-        }
-        val relay = StubRelay(alertResult)
-        val fake = StubFake(silentResult)
-        val settings = FakeSettingsRepository(AppSettings()) // no relayBaseUrl
+    fun verifiedButNoKey_debugUsesFake() = runTest {
+        val direct = StubDirect(directResult)
+        val fake = StubFake(fakeResult)
+        val router = RoutingAiClassifier(fake, direct, verified(), FakeApiKeyStore(null))
 
-        val router = RoutingAiClassifier(fake, relay, settings, throwingStore)
+        val result = router.classify(request)
+
+        assertFalse(direct.called)
+        assertTrue(fake.called)
+    }
+
+    @Test
+    fun notVerified_neverReadsKeyStore_routesToFake() = runTest {
+        // A key store that fails (e.g. Keystore init error) must not be touched when not verified —
+        // the debug fake path stays intact.
+        val throwingStore = object : ApiKeyStore {
+            override suspend fun get(): String? = throw IllegalStateException("keystore unavailable")
+            override suspend fun set(key: String?) {}
+        }
+        val direct = StubDirect(directResult)
+        val fake = StubFake(fakeResult)
+        val router = RoutingAiClassifier(fake, direct, FakeSettingsRepository(), throwingStore)
+
         val result = router.classify(request) // must not throw
 
-        assertFalse(relay.called)
-        assertTrue(fake.called)
-        assertEquals(Decision.SILENT, result.decision)
-    }
-
-    @Test
-    fun baseUrlSetButTokenBlank_routesToFake() = runTest {
-        val relay = StubRelay(alertResult)
-        val fake = StubFake(silentResult)
-        // Verified + URL set, but the token is blank -> the token check drives the fallback.
-        val settings = FakeSettingsRepository(
-            AppSettings(
-                aiConnection = AiConnectionState(relayBaseUrl = "https://relay.example", isVerified = true),
-            ),
-        )
-        val router = RoutingAiClassifier(fake, relay, settings, FakeDeviceTokenStore("   "))
-
-        router.classify(request)
-
-        assertFalse(relay.called)
-        assertTrue(fake.called)
-    }
-
-    @Test
-    fun urlAndTokenPresentButNotVerified_routesToFake() = runTest {
-        val relay = StubRelay(alertResult)
-        val fake = StubFake(silentResult)
-        // Full config present, but the last Test failed / never ran -> isVerified = false.
-        // The relay must NOT be used live while the UI says "not connected".
-        val settings = FakeSettingsRepository(
-            AppSettings(
-                aiConnection = AiConnectionState(relayBaseUrl = "https://relay.example", isVerified = false),
-            ),
-        )
-        val router = RoutingAiClassifier(fake, relay, settings, FakeDeviceTokenStore("tok"))
-
-        val result = router.classify(request)
-
-        assertFalse(relay.called)
+        assertFalse(direct.called)
         assertTrue(fake.called)
         assertEquals(Decision.SILENT, result.decision)
     }

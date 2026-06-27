@@ -1,9 +1,9 @@
 package com.hawwwran.shushly.di
 
+import com.hawwwran.shushly.core.data.ApiKeyStore
 import com.hawwwran.shushly.core.data.DecisionHistoryRepository
 import com.hawwwran.shushly.core.data.DecisionHistoryRepositoryImpl
-import com.hawwwran.shushly.core.data.DeviceTokenStore
-import com.hawwwran.shushly.core.data.EncryptedDeviceTokenStore
+import com.hawwwran.shushly.core.data.EncryptedApiKeyStore
 import com.hawwwran.shushly.core.data.InstalledAppRepository
 import com.hawwwran.shushly.core.data.InstalledAppRepositoryImpl
 import com.hawwwran.shushly.core.data.SeenAppsRepository
@@ -25,7 +25,7 @@ import dagger.hilt.components.SingletonComponent
 @InstallIn(SingletonComponent::class)
 abstract class AppModule {
 
-    /** Selects relay-or-fake per call (relay when configured; fake in debug otherwise). */
+    /** Selects direct-OpenAI-or-fake per call (direct when key set + verified; fake in debug otherwise). */
     @Binds
     abstract fun bindAiClassifier(impl: RoutingAiClassifier): AiClassifier
 
@@ -33,7 +33,7 @@ abstract class AppModule {
     abstract fun bindSettingsRepository(impl: SettingsRepositoryImpl): SettingsRepository
 
     @Binds
-    abstract fun bindDeviceTokenStore(impl: EncryptedDeviceTokenStore): DeviceTokenStore
+    abstract fun bindApiKeyStore(impl: EncryptedApiKeyStore): ApiKeyStore
 
     @Binds
     abstract fun bindSeenAppsRepository(impl: SeenAppsRepositoryImpl): SeenAppsRepository

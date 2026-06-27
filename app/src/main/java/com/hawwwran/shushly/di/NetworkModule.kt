@@ -1,5 +1,6 @@
 package com.hawwwran.shushly.di
 
+import com.hawwwran.shushly.service.ai.OpenAiProvider
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -11,7 +12,7 @@ import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
-/** Networking singletons for the relay client (spec §9.4). */
+/** Networking singletons for direct provider calls (OpenAI). */
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
@@ -21,19 +22,22 @@ object NetworkModule {
     fun provideJson(): Json = Json {
         ignoreUnknownKeys = true
         explicitNulls = false
-        // The relay requires schema_version (z.literal(1)); without this, default-valued fields
-        // like schema_version / locale / default_on_ambiguity are dropped and the relay 400s.
-        encodeDefaults = true
     }
+
+    /** The real OpenAI base URL; tests construct OpenAiProvider directly with a MockWebServer URL. */
+    @Provides
+    @Singleton
+    fun provideOpenAiProvider(okHttpClient: OkHttpClient, json: Json): OpenAiProvider =
+        OpenAiProvider(okHttpClient, json, "https://api.openai.com")
 
     @Provides
     @Singleton
     fun provideOkHttpClient(
         interceptors: Set<@JvmSuppressWildcards Interceptor>,
     ): OkHttpClient {
-        // Read/call timeouts exceed the relay's own 8s OpenAI-client timeout x maxRetries (~16s worst
-        // case), plus first-call cold-start: a valid late alert must arrive before we give up. Past
-        // the call timeout the pipeline still fails safe to silent.
+        // Generous read/call timeouts: OpenAI tail latency + first-call cold start can exceed 10s, and
+        // a valid late alert must arrive before we give up. Past the call timeout the pipeline still
+        // fails safe to silent.
         val builder = OkHttpClient.Builder()
             .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
             .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)

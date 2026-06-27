@@ -3,7 +3,6 @@
 package com.hawwwran.shushly.feature.aiconnection
 
 import android.text.format.DateUtils
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,10 +32,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -46,8 +43,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import com.hawwwran.shushly.BuildConfig
-import com.hawwwran.shushly.feature.aiconnection.AiConnectionViewModel.RelayPreset
 import com.hawwwran.shushly.feature.aiconnection.AiConnectionViewModel.TestStatus
 import com.hawwwran.shushly.feature.common.OkColor
 
@@ -88,59 +83,30 @@ fun AiConnectionScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Text(
-                text = "Shushly classifies on your device by default and sends nothing off your phone. " +
-                    "Connect a relay to let an AI help decide which notifications are important; only " +
-                    "redacted notification details are sent, never your whole inbox.",
+                text = "Shushly classifies on your device by default. Add your own OpenAI API key to let " +
+                    "OpenAI help decide which notifications are important. Your key is stored encrypted on " +
+                    "this device and sent only to OpenAI.",
                 style = MaterialTheme.typography.bodyMedium,
             )
 
-            ConnectionTypeCard(preset = ui.preset, onPresetChange = viewModel::onPresetChange)
-
             OutlinedTextField(
-                value = ui.relayUrl,
-                onValueChange = viewModel::onUrlChange,
+                value = ui.apiKey,
+                onValueChange = viewModel::onKeyChange,
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text("Relay URL") },
+                label = { Text("OpenAI API key") },
                 singleLine = true,
-                isError = ui.relayUrl.isNotBlank() && !isAcceptableUrl(ui.relayUrl.trim()),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri),
-                supportingText = {
-                    Text(
-                        if (ui.relayUrl.isNotBlank() && !isAcceptableUrl(ui.relayUrl.trim())) {
-                            "Use https:// (http:// is allowed only for 127.0.0.1 / localhost in debug)."
-                        } else {
-                            "Must start with https://. In debug, http:// is allowed for 127.0.0.1 / localhost."
-                        },
-                    )
-                },
-            )
-
-            OutlinedTextField(
-                value = ui.token,
-                onValueChange = viewModel::onTokenChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text("Device token") },
-                singleLine = true,
-                visualTransformation = if (ui.showToken) VisualTransformation.None else PasswordVisualTransformation(),
+                visualTransformation = if (ui.showKey) VisualTransformation.None else PasswordVisualTransformation(),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                 trailingIcon = {
-                    IconButton(onClick = viewModel::toggleShowToken) {
+                    IconButton(onClick = viewModel::toggleShowKey) {
                         Icon(
-                            imageVector = if (ui.showToken) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                            contentDescription = if (ui.showToken) "Hide token" else "Show token",
+                            imageVector = if (ui.showKey) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                            contentDescription = if (ui.showKey) "Hide key" else "Show key",
                         )
                     }
                 },
-                supportingText = { Text("Saved securely on your device. Sent to the relay only as a bearer token.") },
+                supportingText = { Text("Stored encrypted on this device; sent only to OpenAI.") },
             )
-
-            if (BuildConfig.DEBUG && BuildConfig.DEV_RELAY_URL.isNotEmpty()) {
-                TextButton(
-                    onClick = { viewModel.fillDevRelay(BuildConfig.DEV_RELAY_URL, BuildConfig.DEV_DEVICE_TOKEN) },
-                ) {
-                    Text("Fill dev relay (localhost)")
-                }
-            }
 
             OutlinedTextField(
                 value = ui.customInstruction,
@@ -179,56 +145,6 @@ fun AiConnectionScreen(
 }
 
 @Composable
-private fun ConnectionTypeCard(preset: RelayPreset, onPresetChange: (RelayPreset) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Connection type", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            RadioRow(
-                label = "Shushly relay (recommended)",
-                supporting = "Send redacted notification details to a relay you trust. Needs a relay URL and a device token.",
-                selected = preset == RelayPreset.RECOMMENDED,
-                enabled = true,
-                onClick = { onPresetChange(RelayPreset.RECOMMENDED) },
-            )
-            RadioRow(
-                label = "Private / self-hosted relay",
-                supporting = "Point Shushly at your own relay deployment.",
-                selected = preset == RelayPreset.SELF_HOSTED,
-                enabled = true,
-                onClick = { onPresetChange(RelayPreset.SELF_HOSTED) },
-            )
-            RadioRow(
-                label = "Direct API key (development only)",
-                supporting = "Not available in this build.",
-                selected = false,
-                enabled = false,
-                onClick = {},
-            )
-        }
-    }
-}
-
-@Composable
-private fun RadioRow(
-    label: String,
-    supporting: String,
-    selected: Boolean,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    val rowModifier = if (enabled) Modifier.fillMaxWidth().clickable(onClick = onClick) else Modifier.fillMaxWidth()
-    val contentColor = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
-    Row(modifier = rowModifier, verticalAlignment = Alignment.CenterVertically) {
-        RadioButton(selected = selected, onClick = if (enabled) onClick else null, enabled = enabled)
-        Spacer(Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(label, style = MaterialTheme.typography.bodyLarge, color = contentColor)
-            Text(supporting, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-    }
-}
-
-@Composable
 private fun StatusCard(ui: AiConnectionViewModel.UiState) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -248,11 +164,14 @@ private fun StatusCard(ui: AiConnectionViewModel.UiState) {
                     Text("Couldn't connect — ${status.reason}", style = MaterialTheme.typography.bodyMedium)
                 }
                 TestStatus.Idle -> if (ui.isVerified) {
-                    ConnectedRow(model = null, atMs = ui.lastVerifiedAtMs)
+                    ConnectedRow(model = ui.model, atMs = ui.lastVerifiedAtMs)
                 } else {
                     Icon(Icons.Filled.Info, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(12.dp))
-                    Text("Not configured yet — enter a relay and tap Test connection.", style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "Not connected yet — enter your OpenAI API key and tap Test connection.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
                 }
             }
         }
@@ -265,7 +184,7 @@ private fun ConnectedRow(model: String?, atMs: Long?) {
     Spacer(Modifier.width(12.dp))
     Column {
         Text(
-            text = "Connected" + (model?.let { " · $it" } ?: ""),
+            text = "Connected" + (model?.takeIf { it.isNotBlank() }?.let { " · $it" } ?: ""),
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.SemiBold,
         )
@@ -278,15 +197,4 @@ private fun ConnectedRow(model: String?, atMs: Long?) {
             Text("Last verified $rel", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
-}
-
-/** https:// always; http:// only for loopback/emulator hosts in a debug build. */
-private fun isAcceptableUrl(url: String): Boolean {
-    if (url.startsWith("https://")) return true
-    if (BuildConfig.DEBUG) {
-        return url.startsWith("http://127.0.0.1") ||
-            url.startsWith("http://localhost") ||
-            url.startsWith("http://10.0.2.2")
-    }
-    return false
 }

@@ -1,15 +1,17 @@
 package com.hawwwran.shushly.core.model
 
-/** How the app reaches the classifier. DIRECT_KEY_DEVELOPMENT_ONLY is reserved for a later task. */
-enum class AiConnectionMode { RELAY_BACKEND, DIRECT_KEY_DEVELOPMENT_ONLY }
-
 /**
- * AI-connection settings (spec §10.2). The device token is a credential and is NOT part of this
- * state — it lives in Keystore-backed storage (see DeviceTokenStore).
+ * AI-connection settings. The API key is a credential and is NOT part of this state — it lives in
+ * Keystore-backed storage (see [com.hawwwran.shushly.core.data.ApiKeyStore]). The app calls the
+ * provider directly with the user's own key (D12).
  */
 data class AiConnectionState(
-    val mode: AiConnectionMode = AiConnectionMode.RELAY_BACKEND,
-    val relayBaseUrl: String? = null,
+    val provider: AiProviderType = AiProviderType.OPENAI,
+    val model: String = DEFAULT_MODEL,
     val isVerified: Boolean = false,
     val lastVerifiedAtMs: Long? = null,
-)
+) {
+    companion object {
+        const val DEFAULT_MODEL = "gpt-4.1-mini"
+    }
+}

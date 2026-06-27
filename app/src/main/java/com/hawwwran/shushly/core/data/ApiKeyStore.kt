@@ -11,22 +11,22 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Stores the relay device token — a credential, kept separate from [SettingsRepository] (spec §10.2).
- * Reads/writes are off the main thread.
+ * Stores the user's own provider API key (OpenAI) — a credential, kept out of [SettingsRepository]
+ * and only ever sent to the provider. Reads/writes are off the main thread.
  */
-interface DeviceTokenStore {
+interface ApiKeyStore {
     suspend fun get(): String?
-    suspend fun set(token: String?)
+    suspend fun set(key: String?)
 }
 
 /**
  * Keystore-backed implementation using AndroidX `security-crypto` EncryptedSharedPreferences
- * (MasterKey AES256_GCM). The token is encrypted at rest by a hardware-backed key.
+ * (MasterKey AES256_GCM). The key is encrypted at rest by a hardware-backed key, never logged.
  */
 @Singleton
-class EncryptedDeviceTokenStore @Inject constructor(
+class EncryptedApiKeyStore @Inject constructor(
     @ApplicationContext private val context: Context,
-) : DeviceTokenStore {
+) : ApiKeyStore {
 
     // Built on first use (touches Keystore + disk), then reused.
     private val prefs: SharedPreferences by lazy {
@@ -43,19 +43,19 @@ class EncryptedDeviceTokenStore @Inject constructor(
     }
 
     override suspend fun get(): String? = withContext(Dispatchers.IO) {
-        prefs.getString(KEY_TOKEN, null)
+        prefs.getString(KEY_API, null)
     }
 
-    override suspend fun set(token: String?) {
+    override suspend fun set(key: String?) {
         withContext(Dispatchers.IO) {
             val editor = prefs.edit()
-            if (token == null) editor.remove(KEY_TOKEN) else editor.putString(KEY_TOKEN, token)
+            if (key == null) editor.remove(KEY_API) else editor.putString(KEY_API, key)
             editor.commit()
         }
     }
 
     private companion object {
         const val FILE_NAME = "shushly_secure_prefs"
-        const val KEY_TOKEN = "device_token"
+        const val KEY_API = "openai_api_key"
     }
 }

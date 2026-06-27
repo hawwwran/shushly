@@ -9,8 +9,8 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
-import com.hawwwran.shushly.core.model.AiConnectionMode
 import com.hawwwran.shushly.core.model.AiConnectionState
+import com.hawwwran.shushly.core.model.AiProviderType
 import com.hawwwran.shushly.core.model.AppSettings
 import com.hawwwran.shushly.core.model.EligibilityMode
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -23,8 +23,8 @@ import javax.inject.Singleton
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "shushly_settings")
 
 /**
- * User settings. Holds no credentials (the device token uses Keystore-backed storage; see
- * [DeviceTokenStore]). An interface so the decision/relay units can be unit-tested with a fake.
+ * User settings. Holds no credentials (the API key uses Keystore-backed storage; see [ApiKeyStore]).
+ * An interface so the decision units can be unit-tested with a fake.
  */
 interface SettingsRepository {
     val settings: Flow<AppSettings>
@@ -36,8 +36,8 @@ interface SettingsRepository {
     suspend fun setSelectedPackages(packages: Set<String>)
     suspend fun setZenRuleId(id: String?)
     suspend fun setOnboardingComplete(complete: Boolean)
-    suspend fun setRelayBaseUrl(url: String?)
-    suspend fun setAiConnectionMode(mode: AiConnectionMode)
+    suspend fun setAiProvider(provider: AiProviderType)
+    suspend fun setAiModel(model: String)
     suspend fun setAiVerified(verified: Boolean, atMs: Long?)
     suspend fun setCustomAiInstruction(text: String?)
 }
@@ -55,8 +55,8 @@ class SettingsRepositoryImpl @Inject constructor(
         val SELECTED = stringSetPreferencesKey("selected_packages")
         val ZEN_RULE_ID = stringPreferencesKey("zen_rule_id")
         val ONBOARDING_COMPLETE = booleanPreferencesKey("onboarding_complete")
-        val RELAY_BASE_URL = stringPreferencesKey("relay_base_url")
-        val AI_MODE = stringPreferencesKey("ai_connection_mode")
+        val AI_PROVIDER = stringPreferencesKey("ai_provider")
+        val AI_MODEL = stringPreferencesKey("ai_model")
         val AI_VERIFIED = booleanPreferencesKey("ai_verified")
         val AI_VERIFIED_AT = longPreferencesKey("ai_verified_at_ms")
         val CUSTOM_AI_INSTRUCTION = stringPreferencesKey("custom_ai_instruction")
@@ -87,11 +87,11 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setOnboardingComplete(complete: Boolean) =
         edit { it[Keys.ONBOARDING_COMPLETE] = complete }
 
-    override suspend fun setRelayBaseUrl(url: String?) =
-        edit { prefs -> if (url == null) prefs.remove(Keys.RELAY_BASE_URL) else prefs[Keys.RELAY_BASE_URL] = url }
+    override suspend fun setAiProvider(provider: AiProviderType) =
+        edit { it[Keys.AI_PROVIDER] = provider.name }
 
-    override suspend fun setAiConnectionMode(mode: AiConnectionMode) =
-        edit { it[Keys.AI_MODE] = mode.name }
+    override suspend fun setAiModel(model: String) =
+        edit { it[Keys.AI_MODEL] = model }
 
     override suspend fun setAiVerified(verified: Boolean, atMs: Long?) =
         edit { prefs ->
@@ -119,10 +119,10 @@ class SettingsRepositoryImpl @Inject constructor(
         zenRuleId = this[Keys.ZEN_RULE_ID],
         onboardingComplete = this[Keys.ONBOARDING_COMPLETE] ?: false,
         aiConnection = AiConnectionState(
-            mode = this[Keys.AI_MODE]
-                ?.let { runCatching { AiConnectionMode.valueOf(it) }.getOrNull() }
-                ?: AiConnectionMode.RELAY_BACKEND,
-            relayBaseUrl = this[Keys.RELAY_BASE_URL],
+            provider = this[Keys.AI_PROVIDER]
+                ?.let { runCatching { AiProviderType.valueOf(it) }.getOrNull() }
+                ?: AiProviderType.OPENAI,
+            model = this[Keys.AI_MODEL] ?: AiConnectionState.DEFAULT_MODEL,
             isVerified = this[Keys.AI_VERIFIED] ?: false,
             lastVerifiedAtMs = this[Keys.AI_VERIFIED_AT],
         ),
