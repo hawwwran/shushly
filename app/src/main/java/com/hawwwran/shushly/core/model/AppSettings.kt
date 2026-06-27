@@ -7,6 +7,10 @@ package com.hawwwran.shushly.core.model
 data class AppSettings(
     val smartQuietModeEnabled: Boolean = false,
     val vibrateForCriticalAlerts: Boolean = true,
+    /** URI of the chosen alert tone; null = the system default notification tone. */
+    val alertSoundUri: String? = null,
+    /** Per-playback loudness multiplier (0..1) within the device alarm volume; 1.0 = full. */
+    val alertVolume: Float = 1.0f,
     val simulationModeEnabled: Boolean = false,
     val eligibilityMode: EligibilityMode = EligibilityMode.ALL_APPS_EXCEPT_SELECTED,
     val selectedPackages: Set<String> = emptySet(),

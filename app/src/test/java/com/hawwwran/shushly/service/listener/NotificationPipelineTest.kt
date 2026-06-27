@@ -288,6 +288,27 @@ class NotificationPipelineTest {
     }
 
     @Test
+    fun aiAlert_passesConfiguredSoundUriAndVolumeToSounder() = runTest {
+        val uri = "content://media/internal/audio/media/42"
+        val h = Harness(settings(alertSound = uri, alertVolume = 0.4f), ProgrammableClassifier(alert(0.95)))
+        h.pipeline.processExtracted(extracted())
+
+        assertEquals(1, h.sounder.callCount)
+        assertEquals(uri, h.sounder.lastSoundUri)
+        assertEquals(0.4f, h.sounder.lastVolume!!, 0.0001f)
+    }
+
+    @Test
+    fun alwaysAlert_passesConfiguredSoundUriToSounder() = runTest {
+        val uri = "content://media/internal/audio/media/7"
+        val h = Harness(settings(always = setOf("com.example.app"), alertSound = uri), ProgrammableClassifier(alert(0.95)))
+        h.pipeline.processExtracted(extracted(pkg = "com.example.app"))
+
+        assertEquals(1, h.sounder.callCount)
+        assertEquals(uri, h.sounder.lastSoundUri)
+    }
+
+    @Test
     fun nonAlwaysAlertApp_stillFlowsThroughAi() = runTest {
         val classifier = ProgrammableClassifier(alert(0.95))
         val h = Harness(settings(always = setOf("com.other.app")), classifier)
@@ -309,6 +330,8 @@ private fun settings(
     eligibilityMode: EligibilityMode = EligibilityMode.ALL_APPS_EXCEPT_SELECTED,
     selected: Set<String> = emptySet(),
     always: Set<String> = emptySet(),
+    alertSound: String? = null,
+    alertVolume: Float = 1.0f,
 ): SettingsRepository = FakeSettingsRepository(
     AppSettings(
         smartQuietModeEnabled = smartQuiet,
@@ -317,6 +340,8 @@ private fun settings(
         eligibilityMode = eligibilityMode,
         selectedPackages = selected,
         alwaysAlertPackages = always,
+        alertSoundUri = alertSound,
+        alertVolume = alertVolume,
     ),
 )
 

@@ -3,7 +3,11 @@
 package com.hawwwran.shushly.feature.home
 
 import android.Manifest
+import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.media.RingtoneManager
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import android.text.format.DateUtils
@@ -35,6 +39,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -42,11 +47,15 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import com.hawwwran.shushly.core.model.EligibilityMode
 import com.hawwwran.shushly.feature.common.OkColor
 import com.hawwwran.shushly.feature.picker.PickerTarget
@@ -126,8 +135,16 @@ fun HomeScreen(
                 enabled = readiness.minimumMet,
                 smartQuietOn = settings.smartQuietModeEnabled,
                 vibrate = settings.vibrateForCriticalAlerts,
+                alertVolume = settings.alertVolume,
                 onSmartQuietChange = viewModel::setSmartQuietMode,
                 onVibrateChange = viewModel::setVibrate,
+                onAlertVolumeChange = viewModel::setAlertVolume,
+            )
+
+            AlertSoundCard(
+                currentUri = settings.alertSoundUri,
+                onPick = viewModel::setAlertSound,
+                onPreview = viewModel::previewAlertSound,
             )
 
             SimulationCard(
@@ -298,8 +315,10 @@ private fun MasterToggleCard(
     enabled: Boolean,
     smartQuietOn: Boolean,
     vibrate: Boolean,
+    alertVolume: Float,
     onSmartQuietChange: (Boolean) -> Unit,
     onVibrateChange: (Boolean) -> Unit,
+    onAlertVolumeChange: (Float) -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -318,7 +337,92 @@ private fun MasterToggleCard(
                 Text("Vibrate for critical alerts", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
                 Switch(checked = vibrate, onCheckedChange = onVibrateChange)
             }
+            HorizontalDivider()
+            // Local slider state; persist on release (not every drag tick). Re-syncs if the stored
+            // value changes (keyed remember).
+            var volume by remember(alertVolume) { mutableStateOf(alertVolume) }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Alert volume", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = "${(volume * 100).roundToInt()}%",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Slider(
+                value = volume,
+                onValueChange = { volume = it },
+                onValueChangeFinished = { onAlertVolumeChange(volume) },
+                valueRange = 0f..1f,
+            )
+            Text(
+                text = "How loud Shushly's alert is, within your device's alarm volume.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
+    }
+}
+
+@Composable
+private fun AlertSoundCard(currentUri: String?, onPick: (String?) -> Unit, onPreview: () -> Unit) {
+    val context = LocalContext.current
+    val title = remember(currentUri) { alertSoundTitle(context, currentUri) }
+    val pickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val picked: Uri? = result.data?.let { data ->
+                if (Build.VERSION.SDK_INT >= 33) {
+                    data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+                } else {
+                    @Suppress("DEPRECATION")
+                    data.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI)
+                }
+            }
+            val defaultUri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+            // A null pick (or the system default) means "use the default" → store null.
+            onPick(if (picked == null || picked == defaultUri) null else picked.toString())
+        }
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Alert sound", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(title, style = MaterialTheme.typography.bodyMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(
+                    onClick = { pickerLauncher.launch(ringtonePickerIntent(currentUri)) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Choose sound")
+                }
+                OutlinedButton(onClick = onPreview, modifier = Modifier.weight(1f)) {
+                    Text("Play")
+                }
+            }
+            Text(
+                text = "Plays at your device's alarm volume, so it's heard even in silent / Do Not Disturb.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+private fun alertSoundTitle(context: Context, uri: String?): String {
+    if (uri == null) return "Default"
+    val parsed = runCatching { Uri.parse(uri) }.getOrNull() ?: return "Default"
+    return runCatching { RingtoneManager.getRingtone(context, parsed)?.getTitle(context) }.getOrNull() ?: "Default"
+}
+
+private fun ringtonePickerIntent(currentUri: String?): Intent {
+    val existing: Uri? = currentUri?.let { runCatching { Uri.parse(it) }.getOrNull() }
+        ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+    return Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+        putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_NOTIFICATION)
+        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+        putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+        putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Shushly alert sound")
+        putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, existing)
     }
 }
 

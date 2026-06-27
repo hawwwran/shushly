@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -31,6 +32,8 @@ interface SettingsRepository {
     suspend fun snapshot(): AppSettings
     suspend fun setSmartQuietMode(enabled: Boolean)
     suspend fun setVibrate(enabled: Boolean)
+    suspend fun setAlertSound(uri: String?)
+    suspend fun setAlertVolume(volume: Float)
     suspend fun setSimulationMode(enabled: Boolean)
     suspend fun setEligibilityMode(mode: EligibilityMode)
     suspend fun setSelectedPackages(packages: Set<String>)
@@ -53,6 +56,8 @@ class SettingsRepositoryImpl @Inject constructor(
     private object Keys {
         val SMART_QUIET = booleanPreferencesKey("smart_quiet_enabled")
         val VIBRATE = booleanPreferencesKey("vibrate_critical")
+        val ALERT_SOUND_URI = stringPreferencesKey("alert_sound_uri")
+        val ALERT_VOLUME = floatPreferencesKey("alert_volume")
         val SIMULATION = booleanPreferencesKey("simulation_enabled")
         val ELIGIBILITY_MODE = stringPreferencesKey("eligibility_mode")
         val SELECTED = stringSetPreferencesKey("selected_packages")
@@ -77,6 +82,12 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setVibrate(enabled: Boolean) =
         edit { it[Keys.VIBRATE] = enabled }
+
+    override suspend fun setAlertSound(uri: String?) =
+        edit { prefs -> if (uri == null) prefs.remove(Keys.ALERT_SOUND_URI) else prefs[Keys.ALERT_SOUND_URI] = uri }
+
+    override suspend fun setAlertVolume(volume: Float) =
+        edit { it[Keys.ALERT_VOLUME] = volume.coerceIn(0f, 1f) }
 
     override suspend fun setSimulationMode(enabled: Boolean) =
         edit { it[Keys.SIMULATION] = enabled }
@@ -126,6 +137,8 @@ class SettingsRepositoryImpl @Inject constructor(
     private fun Preferences.toAppSettings(): AppSettings = AppSettings(
         smartQuietModeEnabled = this[Keys.SMART_QUIET] ?: false,
         vibrateForCriticalAlerts = this[Keys.VIBRATE] ?: true,
+        alertSoundUri = this[Keys.ALERT_SOUND_URI],
+        alertVolume = (this[Keys.ALERT_VOLUME] ?: 1.0f).coerceIn(0f, 1f),
         simulationModeEnabled = this[Keys.SIMULATION] ?: false,
         eligibilityMode = this[Keys.ELIGIBILITY_MODE]
             ?.let { runCatching { EligibilityMode.valueOf(it) }.getOrNull() }

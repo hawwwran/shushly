@@ -24,8 +24,14 @@ import javax.inject.Singleton
  * tone and the haptic MUST be issued on the alarm usage, or our own DND rule would silence them.
  */
 interface CriticalAlertSounder {
-    /** Plays the alert tone on the alarm lane; also vibrates (alarm usage) when [vibrate] is true. */
-    fun playAlert(vibrate: Boolean)
+    /**
+     * Plays the alert tone on the alarm lane; also vibrates (alarm usage) when [vibrate] is true.
+     * [soundUri] is the chosen tone (a parseable content/resource URI string); null — or anything
+     * that fails to resolve — falls back to the system default. Always plays on USAGE_ALARM.
+     * [volume] is a per-playback multiplier (0..1) within the device alarm volume — it never changes
+     * the global alarm stream.
+     */
+    fun playAlert(vibrate: Boolean, soundUri: String?, volume: Float)
 }
 
 @Singleton
@@ -44,23 +50,28 @@ class CriticalAlertSounderImpl @Inject constructor(
         context.getSystemService(VibratorManager::class.java)?.defaultVibrator
     }
 
-    // Reused across alerts and held as a field so playback isn't cut short by GC mid-play.
+    // Reused across alerts and held as a field so playback isn't cut short by GC mid-play. Cached
+    // only while the requested URI is unchanged; [cachedKey] is the soundUri it was built for (null
+    // = default), so a newly-picked sound rebuilds on the next alert.
     @Volatile private var ringtone: Ringtone? = null
+    @Volatile private var cachedKey: String? = null
 
     @Synchronized
-    override fun playAlert(vibrate: Boolean) {
-        playTone()
+    override fun playAlert(vibrate: Boolean, soundUri: String?, volume: Float) {
+        playTone(soundUri, volume)
         if (vibrate) vibrate()
     }
 
-    private fun playTone() {
+    private fun playTone(soundUri: String?, volume: Float) {
         try {
-            val rt = ensureRingtone()
+            val rt = ensureRingtone(soundUri)
             if (rt == null) {
                 Log.w(TAG, "no alert tone available; sound skipped")
                 return
             }
             rt.audioAttributes = alarmAudioAttributes
+            // Per-playback multiplier within the alarm stream; does NOT change the global alarm volume.
+            rt.volume = volume.coerceIn(0f, 1f)
             if (rt.isPlaying) rt.stop()
             rt.play()
         } catch (t: Throwable) {
@@ -69,13 +80,27 @@ class CriticalAlertSounderImpl @Inject constructor(
         }
     }
 
-    /** The user's default notification tone, routed through the alarm lane; falls back to the alarm tone. */
-    private fun ensureRingtone(): Ringtone? {
-        ringtone?.let { return it }
-        val uri: Uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+    private fun ensureRingtone(soundUri: String?): Ringtone? {
+        val existing = ringtone
+        if (existing != null && cachedKey == soundUri) return existing
+        val rt = buildRingtone(soundUri)
+        ringtone = rt
+        cachedKey = soundUri
+        return rt
+    }
+
+    /** The chosen tone, or the system default (notification → alarm) when null/unresolvable. */
+    private fun buildRingtone(soundUri: String?): Ringtone? {
+        if (soundUri != null) {
+            runCatching { RingtoneManager.getRingtone(context, Uri.parse(soundUri)) }
+                .getOrNull()
+                ?.let { return it }
+            Log.w(TAG, "alert sound URI did not resolve; using default")
+        }
+        val defaultUri: Uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             ?: return null
-        return RingtoneManager.getRingtone(context, uri)?.also { ringtone = it }
+        return runCatching { RingtoneManager.getRingtone(context, defaultUri) }.getOrNull()
     }
 
     private fun vibrate() {

@@ -89,7 +89,7 @@ class NotificationPipeline @Inject constructor(
                 record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_RATE_LIMIT, "Too many alerts just now — held back.", aiCalled = false, wasAlerted = false)
                 return
             }
-            sounder.playAlert(s.vibrateForCriticalAlerts)
+            sounder.playAlert(s.vibrateForCriticalAlerts, s.alertSoundUri, s.alertVolume)
             record(e, Decision.ALERT, DecisionReasonCode.ALERT_ALWAYS, "Always-alert: you set this app to always sound.", aiCalled = false, wasAlerted = true)
             return
         }
@@ -134,7 +134,7 @@ class NotificationPipeline @Inject constructor(
             return
         }
 
-        sounder.playAlert(s.vibrateForCriticalAlerts)
+        sounder.playAlert(s.vibrateForCriticalAlerts, s.alertSoundUri, s.alertVolume)
         record(e, Decision.ALERT, result.reasonCode, result.userVisibleReason, aiCalled = true, wasAlerted = true)
     }
 

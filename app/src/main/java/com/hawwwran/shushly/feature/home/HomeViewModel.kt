@@ -10,6 +10,7 @@ import com.hawwwran.shushly.core.data.SettingsRepository
 import com.hawwwran.shushly.core.model.AppSettings
 import com.hawwwran.shushly.core.model.EligibilityMode
 import com.hawwwran.shushly.readiness.ReadinessChecker
+import com.hawwwran.shushly.service.alerting.CriticalAlertSounder
 import com.hawwwran.shushly.service.alerting.NotificationChannels
 import com.hawwwran.shushly.service.listener.NotificationPipeline
 import com.hawwwran.shushly.service.quietmode.QuietModeController
@@ -45,6 +46,7 @@ class HomeViewModel @Inject constructor(
     private val readiness: ReadinessChecker,
     private val pipeline: NotificationPipeline,
     private val smartQuietMode: SmartQuietModeManager,
+    private val sounder: CriticalAlertSounder,
 ) : ViewModel() {
 
     val settingsState: StateFlow<AppSettings> = settings.settings
@@ -85,6 +87,22 @@ class HomeViewModel @Inject constructor(
 
     fun setVibrate(enabled: Boolean) {
         viewModelScope.launch { settings.setVibrate(enabled) }
+    }
+
+    fun setAlertSound(uri: String?) {
+        viewModelScope.launch { settings.setAlertSound(uri) }
+    }
+
+    fun setAlertVolume(volume: Float) {
+        viewModelScope.launch { settings.setAlertVolume(volume) }
+    }
+
+    /** Plays the currently-configured alert sound at the configured loudness, so the user can hear it. */
+    fun previewAlertSound() {
+        viewModelScope.launch {
+            val s = settings.snapshot()
+            sounder.playAlert(s.vibrateForCriticalAlerts, s.alertSoundUri, s.alertVolume)
+        }
     }
 
     fun setEligibilityMode(mode: EligibilityMode) {
