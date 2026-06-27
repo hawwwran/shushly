@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug only (app/src/debug). Keeps cleartext blocked by default, but permits http:// to the
+  loopback / emulator hosts so the local relay (reached via `adb reverse tcp:8787 tcp:8787`) works
+  for end-to-end testing. Release has no networkSecurityConfig, so cleartext stays blocked there.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

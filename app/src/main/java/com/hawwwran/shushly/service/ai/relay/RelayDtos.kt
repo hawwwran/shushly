@@ -38,6 +38,13 @@ data class PolicyDto(
     @SerialName("user_instruction") val userInstruction: String? = null,
 )
 
+/** Response from `GET /v1/auth-check` (bearer auth, no OpenAI call). Used by RelayConnectionTester. */
+@Serializable
+data class AuthCheckResponseDto(
+    val ok: Boolean = false,
+    val model: String? = null,
+)
+
 @Serializable
 data class ClassifyResponseDto(
     @SerialName("schema_version") val schemaVersion: Int = 1,

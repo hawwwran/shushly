@@ -24,6 +24,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.hawwwran.shushly.feature.about.AboutScreen
+import com.hawwwran.shushly.feature.aiconnection.AiConnectionScreen
+import com.hawwwran.shushly.feature.aiconnection.AiConnectionViewModel
 import com.hawwwran.shushly.feature.common.openAppNotificationSettings
 import com.hawwwran.shushly.feature.history.DecisionDetailScreen
 import com.hawwwran.shushly.feature.history.HistoryScreen
@@ -144,9 +146,8 @@ private fun AppNavHost(viewModel: HomeViewModel) {
             AboutScreen(onBack = { navController.popBackStack() })
         }
         composable(Routes.AI_CONNECTION) {
-            StubScreen(
-                title = "AI connection",
-                line = "Coming in a later update. For now, Shushly decides on your device and sends nothing off your phone.",
+            AiConnectionScreen(
+                viewModel = hiltViewModel<AiConnectionViewModel>(),
                 onBack = { navController.popBackStack() },
             )
         }

@@ -27,6 +27,10 @@ android {
             applicationIdSuffix = ".debug"
             isDebuggable = true
             buildConfigField("boolean", "USE_FAKE_CLASSIFIER", "true")
+            // Convenience values for the debug-only "Fill dev relay (localhost)" button.
+            // Reached on-device via `adb reverse tcp:8787 tcp:8787`. Not auto-seeded.
+            buildConfigField("String", "DEV_RELAY_URL", "\"http://127.0.0.1:8787\"")
+            buildConfigField("String", "DEV_DEVICE_TOKEN", "\"shushly-dev-local\"")
         }
         release {
             isMinifyEnabled = false
@@ -35,6 +39,8 @@ android {
                 "proguard-rules.pro",
             )
             buildConfigField("boolean", "USE_FAKE_CLASSIFIER", "false")
+            buildConfigField("String", "DEV_RELAY_URL", "\"\"")
+            buildConfigField("String", "DEV_DEVICE_TOKEN", "\"\"")
         }
     }
 

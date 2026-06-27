@@ -67,7 +67,9 @@ class RoutingAiClassifierTest {
         val relay = StubRelay(alertResult)
         val fake = StubFake(silentResult)
         val settings = FakeSettingsRepository(
-            AppSettings(aiConnection = AiConnectionState(relayBaseUrl = "https://relay.example")),
+            AppSettings(
+                aiConnection = AiConnectionState(relayBaseUrl = "https://relay.example", isVerified = true),
+            ),
         )
         val router = RoutingAiClassifier(fake, relay, settings, FakeDeviceTokenStore("tok"))
 
@@ -117,8 +119,11 @@ class RoutingAiClassifierTest {
     fun baseUrlSetButTokenBlank_routesToFake() = runTest {
         val relay = StubRelay(alertResult)
         val fake = StubFake(silentResult)
+        // Verified + URL set, but the token is blank -> the token check drives the fallback.
         val settings = FakeSettingsRepository(
-            AppSettings(aiConnection = AiConnectionState(relayBaseUrl = "https://relay.example")),
+            AppSettings(
+                aiConnection = AiConnectionState(relayBaseUrl = "https://relay.example", isVerified = true),
+            ),
         )
         val router = RoutingAiClassifier(fake, relay, settings, FakeDeviceTokenStore("   "))
 
@@ -126,5 +131,25 @@ class RoutingAiClassifierTest {
 
         assertFalse(relay.called)
         assertTrue(fake.called)
+    }
+
+    @Test
+    fun urlAndTokenPresentButNotVerified_routesToFake() = runTest {
+        val relay = StubRelay(alertResult)
+        val fake = StubFake(silentResult)
+        // Full config present, but the last Test failed / never ran -> isVerified = false.
+        // The relay must NOT be used live while the UI says "not connected".
+        val settings = FakeSettingsRepository(
+            AppSettings(
+                aiConnection = AiConnectionState(relayBaseUrl = "https://relay.example", isVerified = false),
+            ),
+        )
+        val router = RoutingAiClassifier(fake, relay, settings, FakeDeviceTokenStore("tok"))
+
+        val result = router.classify(request)
+
+        assertFalse(relay.called)
+        assertTrue(fake.called)
+        assertEquals(Decision.SILENT, result.decision)
     }
 }

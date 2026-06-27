@@ -21,6 +21,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -98,6 +99,7 @@ fun HomeScreen(
 
             ReadinessCard(
                 readiness = readiness,
+                aiVerified = settings.aiConnection.isVerified,
                 onFixListener = { context.startSafely(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
                 onFixPolicy = { context.startSafely(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) },
                 onFixNotifications = {
@@ -147,6 +149,7 @@ fun HomeScreen(
 @Composable
 private fun ReadinessCard(
     readiness: ReadinessUi,
+    aiVerified: Boolean,
     onFixListener: () -> Unit,
     onFixPolicy: () -> Unit,
     onFixNotifications: () -> Unit,
@@ -159,6 +162,35 @@ private fun ReadinessCard(
             ReadinessRow("Quiet-mode (DND) access", readiness.policyAccessGranted, onFixPolicy)
             ReadinessRow("Notifications allowed for Shushly", readiness.postNotificationsGranted, onFixNotifications)
             ReadinessRow("Shushly can be heard (alarm volume)", readiness.alarmAudible, onFixAlarm)
+            AiConnectionReadinessRow(aiVerified)
+        }
+    }
+}
+
+/**
+ * Informational only: AI is optional. Without a verified relay, eligible notifications just stay
+ * silent — so this row never blocks setup (it's not part of [ReadinessUi.minimumMet]) and has no Fix.
+ */
+@Composable
+private fun AiConnectionReadinessRow(verified: Boolean) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            imageVector = if (verified) Icons.Filled.CheckCircle else Icons.Filled.Info,
+            contentDescription = null,
+            tint = if (verified) OkColor else MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text("AI connection verified", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = if (verified) {
+                    "Optional. A relay is connected and verified."
+                } else {
+                    "Optional. Without it, eligible notifications just stay silent."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
