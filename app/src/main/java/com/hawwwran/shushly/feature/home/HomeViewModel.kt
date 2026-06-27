@@ -96,6 +96,10 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { settings.setEligibilityMode(mode) }
     }
 
+    fun setSimulationMode(enabled: Boolean) {
+        viewModelScope.launch { settings.setSimulationMode(enabled) }
+    }
+
     fun completeOnboarding() {
         viewModelScope.launch { settings.setOnboardingComplete(true) }
     }

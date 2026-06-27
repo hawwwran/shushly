@@ -33,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -91,6 +92,10 @@ fun HomeScreen(
                 style = MaterialTheme.typography.bodyMedium,
             )
 
+            if (settings.simulationModeEnabled) {
+                SimulationBanner()
+            }
+
             ReadinessCard(
                 readiness = readiness,
                 onFixListener = { context.startSafely(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
@@ -113,6 +118,11 @@ fun HomeScreen(
                 onVibrateChange = viewModel::setVibrate,
             )
 
+            SimulationCard(
+                simulationOn = settings.simulationModeEnabled,
+                onSimulationChange = viewModel::setSimulationMode,
+            )
+
             EligibilityCard(
                 mode = settings.eligibilityMode,
                 selectedCount = settings.selectedPackages.size,
@@ -122,6 +132,7 @@ fun HomeScreen(
 
             DebugCard(
                 quietOn = settings.smartQuietModeEnabled,
+                simulationOn = settings.simulationModeEnabled,
                 onFireAlert = { viewModel.fireTest(alert = true) },
                 onFireSilent = { viewModel.fireTest(alert = false) },
             )
@@ -245,7 +256,49 @@ private fun ModeOption(label: String, selected: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun DebugCard(quietOn: Boolean, onFireAlert: () -> Unit, onFireSilent: () -> Unit) {
+private fun SimulationBanner() {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Text(
+            text = "Simulation mode on — important alerts are logged, not sounded.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.padding(12.dp),
+        )
+    }
+}
+
+@Composable
+private fun SimulationCard(simulationOn: Boolean, onSimulationChange: (Boolean) -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "Simulation mode",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Switch(checked = simulationOn, onCheckedChange = onSimulationChange)
+            }
+            Text(
+                text = "Test what Shushly would do — notifications are classified and logged, but it never makes a sound.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+}
+
+@Composable
+private fun DebugCard(
+    quietOn: Boolean,
+    simulationOn: Boolean,
+    onFireAlert: () -> Unit,
+    onFireSilent: () -> Unit,
+) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Developer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -257,6 +310,13 @@ private fun DebugCard(quietOn: Boolean, onFireAlert: () -> Unit, onFireSilent: (
                 },
                 style = MaterialTheme.typography.bodySmall,
             )
+            if (simulationOn) {
+                Text(
+                    text = "Simulation mode is on — TEST_ALERT is logged as WOULD_ALERT, not sounded.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = onFireAlert, modifier = Modifier.weight(1f)) { Text("Fire TEST_ALERT") }
                 OutlinedButton(onClick = onFireSilent, modifier = Modifier.weight(1f)) { Text("Fire TEST_SILENT") }
