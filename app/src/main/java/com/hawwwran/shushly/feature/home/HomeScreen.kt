@@ -4,8 +4,10 @@ package com.hawwwran.shushly.feature.home
 
 import android.Manifest
 import android.app.Activity
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.media.RingtoneManager
 import android.net.Uri
 import android.os.Build
@@ -45,6 +47,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -55,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import kotlin.math.roundToInt
 import com.hawwwran.shushly.core.model.EligibilityMode
 import com.hawwwran.shushly.feature.common.OkColor
@@ -78,6 +82,25 @@ fun HomeScreen(
     val postNotifLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { viewModel.refresh() }
+
+    // Live-sync the alert-volume slider with the system alarm volume while Home is visible: any
+    // external volume change (system panel / rocker) refreshes the readiness state, which re-reads
+    // alarmVolume so the slider's remember(alarmVolume) re-keys and the thumb follows. The write path
+    // (slider → setStreamVolume) is unchanged.
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(received: Context?, intent: Intent?) {
+                viewModel.refresh()
+            }
+        }
+        ContextCompat.registerReceiver(
+            context,
+            receiver,
+            IntentFilter("android.media.VOLUME_CHANGED_ACTION"),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        onDispose { runCatching { context.unregisterReceiver(receiver) } }
+    }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
