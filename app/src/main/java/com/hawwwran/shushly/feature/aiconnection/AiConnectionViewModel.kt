@@ -96,6 +96,9 @@ class AiConnectionViewModel @Inject constructor(
                 is OpenAiProvider.KeyCheck.Valid -> {
                     val now = System.currentTimeMillis()
                     settings.setAiVerified(true, now)
+                    // A reachable key clears any stale "AI unavailable" banner (also cleared on a
+                    // successful classify); see AiHealthTracker.
+                    settings.setAiUnavailableSince(null)
                     ui = ui.copy(
                         testStatus = TestStatus.Success(ui.model),
                         isVerified = true,

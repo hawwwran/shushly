@@ -40,6 +40,8 @@ interface SettingsRepository {
     suspend fun setAiModel(model: String)
     suspend fun setAiVerified(verified: Boolean, atMs: Long?)
     suspend fun setCustomAiInstruction(text: String?)
+    suspend fun setAiUnavailableSince(ms: Long?)
+    suspend fun setListenerConnectedSince(atMs: Long?)
 }
 
 /** DataStore-backed [SettingsRepository]. */
@@ -60,6 +62,8 @@ class SettingsRepositoryImpl @Inject constructor(
         val AI_VERIFIED = booleanPreferencesKey("ai_verified")
         val AI_VERIFIED_AT = longPreferencesKey("ai_verified_at_ms")
         val CUSTOM_AI_INSTRUCTION = stringPreferencesKey("custom_ai_instruction")
+        val AI_UNAVAILABLE_SINCE = longPreferencesKey("ai_unavailable_since_ms")
+        val LISTENER_CONNECTED_SINCE = longPreferencesKey("listener_connected_since_ms")
     }
 
     override val settings: Flow<AppSettings> = context.dataStore.data.map { it.toAppSettings() }
@@ -104,6 +108,12 @@ class SettingsRepositoryImpl @Inject constructor(
             if (text == null) prefs.remove(Keys.CUSTOM_AI_INSTRUCTION) else prefs[Keys.CUSTOM_AI_INSTRUCTION] = text
         }
 
+    override suspend fun setAiUnavailableSince(ms: Long?) =
+        edit { prefs -> if (ms == null) prefs.remove(Keys.AI_UNAVAILABLE_SINCE) else prefs[Keys.AI_UNAVAILABLE_SINCE] = ms }
+
+    override suspend fun setListenerConnectedSince(atMs: Long?) =
+        edit { prefs -> if (atMs == null) prefs.remove(Keys.LISTENER_CONNECTED_SINCE) else prefs[Keys.LISTENER_CONNECTED_SINCE] = atMs }
+
     private suspend fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         context.dataStore.edit(block)
     }
@@ -127,5 +137,7 @@ class SettingsRepositoryImpl @Inject constructor(
             lastVerifiedAtMs = this[Keys.AI_VERIFIED_AT],
         ),
         customAiInstruction = this[Keys.CUSTOM_AI_INSTRUCTION],
+        aiUnavailableSince = this[Keys.AI_UNAVAILABLE_SINCE],
+        listenerConnectedSinceMs = this[Keys.LISTENER_CONNECTED_SINCE],
     )
 }

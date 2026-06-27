@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
 import com.hawwwran.shushly.service.listener.ShushlyNotificationListenerService
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -23,6 +24,9 @@ class ReadinessChecker @Inject constructor(
 
     private val audioManager: AudioManager =
         context.getSystemService(AudioManager::class.java)
+
+    private val powerManager: PowerManager =
+        context.getSystemService(PowerManager::class.java)
 
     fun listenerEnabled(): Boolean {
         val component = ComponentName(context, ShushlyNotificationListenerService::class.java)
@@ -51,6 +55,14 @@ class ReadinessChecker @Inject constructor(
      */
     fun alarmAudible(): Boolean =
         runCatching { audioManager.getStreamVolume(AudioManager.STREAM_ALARM) > 0 }.getOrDefault(true)
+
+    /**
+     * Whether Shushly is exempt from battery optimization. Advisory: on aggressive OEMs (FunTouch)
+     * Doze can kill the notification-listener binding, so an exemption keeps it alive. Not a hard
+     * minimum — the app still works when foregrounded.
+     */
+    fun batteryOptimizationExempt(): Boolean =
+        runCatching { powerManager.isIgnoringBatteryOptimizations(context.packageName) }.getOrDefault(true)
 
     /** Sound-only alerting needs the listener bound and DND-policy access (for the zen rule). */
     fun minimumRequirementsMet(): Boolean =

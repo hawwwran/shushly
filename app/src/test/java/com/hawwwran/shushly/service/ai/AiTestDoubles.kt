@@ -23,6 +23,8 @@ class FakeSettingsRepository(var current: AppSettings = AppSettings()) : Setting
     override suspend fun setAiModel(model: String) {}
     override suspend fun setAiVerified(verified: Boolean, atMs: Long?) {}
     override suspend fun setCustomAiInstruction(text: String?) {}
+    override suspend fun setAiUnavailableSince(ms: Long?) {}
+    override suspend fun setListenerConnectedSince(atMs: Long?) {}
 }
 
 class FakeApiKeyStore(var key: String? = null) : ApiKeyStore {

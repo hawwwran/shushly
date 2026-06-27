@@ -29,9 +29,10 @@ data class ReadinessUi(
     val policyAccessGranted: Boolean = false,
     val postNotificationsGranted: Boolean = false,
     val alarmAudible: Boolean = false,
+    val batteryOptimizationExempt: Boolean = true,
 ) {
-    // Sound-only minimum: listener + DND-policy access. postNotificationsGranted and alarmAudible
-    // are advisory, not blocking.
+    // Sound-only minimum: listener + DND-policy access. postNotificationsGranted, alarmAudible, and
+    // batteryOptimizationExempt are advisory, not blocking.
     val minimumMet: Boolean
         get() = listenerEnabled && policyAccessGranted
 }
@@ -71,6 +72,7 @@ class HomeViewModel @Inject constructor(
             policyAccessGranted = readiness.policyAccessGranted(),
             postNotificationsGranted = readiness.postNotificationsGranted(),
             alarmAudible = readiness.alarmAudible(),
+            batteryOptimizationExempt = readiness.batteryOptimizationExempt(),
         )
     }
 

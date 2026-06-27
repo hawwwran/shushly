@@ -6,6 +6,7 @@ import android.Manifest
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
+import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -49,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import com.hawwwran.shushly.core.model.EligibilityMode
 import com.hawwwran.shushly.feature.common.OkColor
 import com.hawwwran.shushly.feature.common.openAppNotificationSettings
+import com.hawwwran.shushly.feature.common.openBatteryOptimizationSettings
 import com.hawwwran.shushly.feature.common.startSafely
 
 @Composable
@@ -97,8 +99,14 @@ fun HomeScreen(
                 SimulationBanner()
             }
 
+            val aiUnavailableSince = settings.aiUnavailableSince
+            if (aiUnavailableSince != null && settings.smartQuietModeEnabled && settings.aiConnection.isVerified) {
+                AiUnavailableBanner(sinceMs = aiUnavailableSince)
+            }
+
             ReadinessCard(
                 readiness = readiness,
+                listenerConnected = settings.listenerConnectedSinceMs != null,
                 aiVerified = settings.aiConnection.isVerified,
                 onFixListener = { context.startSafely(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },
                 onFixPolicy = { context.startSafely(Intent(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)) },
@@ -110,6 +118,7 @@ fun HomeScreen(
                     }
                 },
                 onFixAlarm = { context.startSafely(Intent(Settings.ACTION_SOUND_SETTINGS)) },
+                onFixBattery = { context.openBatteryOptimizationSettings() },
             )
 
             MasterToggleCard(
@@ -149,20 +158,84 @@ fun HomeScreen(
 @Composable
 private fun ReadinessCard(
     readiness: ReadinessUi,
+    listenerConnected: Boolean,
     aiVerified: Boolean,
     onFixListener: () -> Unit,
     onFixPolicy: () -> Unit,
     onFixNotifications: () -> Unit,
     onFixAlarm: () -> Unit,
+    onFixBattery: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Text("Setup", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             ReadinessRow("Notification access", readiness.listenerEnabled, onFixListener)
+            ListenerRunningRow(connected = listenerConnected, permissionGranted = readiness.listenerEnabled)
             ReadinessRow("Quiet-mode (DND) access", readiness.policyAccessGranted, onFixPolicy)
             ReadinessRow("Notifications allowed for Shushly", readiness.postNotificationsGranted, onFixNotifications)
             ReadinessRow("Shushly can be heard (alarm volume)", readiness.alarmAudible, onFixAlarm)
+            ReadinessRow("Battery optimization exempt", readiness.batteryOptimizationExempt, onFixBattery)
             AiConnectionReadinessRow(aiVerified)
+        }
+    }
+}
+
+/**
+ * Whether the listener is actually bound now (distinct from the permission row). FunTouch can kill
+ * the binding silently; granted-but-not-connected is shown as a problem with a recovery hint. No Fix
+ * button — recovery is reopening the app and/or the battery-optimization row above.
+ */
+@Composable
+private fun ListenerRunningRow(connected: Boolean, permissionGranted: Boolean) {
+    val (icon, tint) = when {
+        connected -> Icons.Filled.CheckCircle to OkColor
+        permissionGranted -> Icons.Filled.Warning to MaterialTheme.colorScheme.error
+        else -> Icons.Filled.Info to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    val hint = when {
+        connected -> "Connected and receiving notifications."
+        permissionGranted -> "Not running. Reopen Shushly; if it keeps dropping, exempt it from battery optimization."
+        else -> "Starts once notification access is granted."
+    }
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Icon(imageVector = icon, contentDescription = null, tint = tint)
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text("Notification listener running", style = MaterialTheme.typography.bodyMedium)
+            Text(hint, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** AI is down (errors recorded), so eligible notifications stay silent until it recovers (§13.2). */
+@Composable
+private fun AiUnavailableBanner(sinceMs: Long) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.errorContainer,
+        shape = MaterialTheme.shapes.medium,
+    ) {
+        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.onErrorContainer)
+            Spacer(Modifier.width(12.dp))
+            Column {
+                Text(
+                    text = "AI unavailable — eligible notifications are staying silent.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                val rel = DateUtils.getRelativeTimeSpanString(
+                    sinceMs,
+                    System.currentTimeMillis(),
+                    DateUtils.MINUTE_IN_MILLIS,
+                ).toString()
+                Text(
+                    text = "Since $rel",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
+            }
         }
     }
 }
@@ -253,28 +326,45 @@ private fun EligibilityCard(
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("AI may re-alert for", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(
+                text = "Notifications stay silent under Smart Quiet Mode; this picks which apps the AI may sound an alert for.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             ModeOption(
                 label = "Selected apps",
+                supporting = "Only the apps you pick can sound an alert. All others stay silent.",
                 selected = mode == EligibilityMode.SELECTED_APPS,
                 onClick = { onModeChange(EligibilityMode.SELECTED_APPS) },
             )
             ModeOption(
                 label = "All apps except selected",
+                supporting = "Every app can sound an alert except the ones you pick.",
                 selected = mode == EligibilityMode.ALL_APPS_EXCEPT_SELECTED,
                 onClick = { onModeChange(EligibilityMode.ALL_APPS_EXCEPT_SELECTED) },
             )
             Text(
-                text = "$selectedCount ${if (selectedCount == 1) "app" else "apps"} selected",
+                text = nowEligibilitySummary(mode, selectedCount),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontWeight = FontWeight.Medium,
             )
             OutlinedButton(onClick = onChooseApps) { Text("Choose apps") }
         }
     }
 }
 
+private fun nowEligibilitySummary(mode: EligibilityMode, count: Int): String {
+    val apps = if (count == 1) "app" else "apps"
+    return when (mode) {
+        EligibilityMode.SELECTED_APPS ->
+            if (count == 0) "Now: no apps can sound — pick some below." else "Now: $count $apps can sound an alert."
+        EligibilityMode.ALL_APPS_EXCEPT_SELECTED ->
+            if (count == 0) "Now: every app can sound an alert." else "Now: every app except $count $apps can sound an alert."
+    }
+}
+
 @Composable
-private fun ModeOption(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun ModeOption(label: String, supporting: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -283,7 +373,10 @@ private fun ModeOption(label: String, selected: Boolean, onClick: () -> Unit) {
     ) {
         RadioButton(selected = selected, onClick = onClick)
         Spacer(Modifier.width(8.dp))
-        Text(label, style = MaterialTheme.typography.bodyMedium)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+            Text(supporting, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 

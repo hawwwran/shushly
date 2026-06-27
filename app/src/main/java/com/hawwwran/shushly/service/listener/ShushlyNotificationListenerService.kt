@@ -1,9 +1,11 @@
 package com.hawwwran.shushly.service.listener
 
+import android.content.ComponentName
 import android.content.pm.PackageManager
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import com.hawwwran.shushly.core.data.SettingsRepository
 import com.hawwwran.shushly.di.ServiceEntryPoint
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.CoroutineScope
@@ -24,6 +26,7 @@ class ShushlyNotificationListenerService : NotificationListenerService() {
     private val semaphore = Semaphore(MAX_CONCURRENT)
 
     private var pipeline: NotificationPipeline? = null
+    private var settings: SettingsRepository? = null
     private var packageManagerRef: PackageManager? = null
 
     override fun onCreate() {
@@ -33,11 +36,27 @@ class ShushlyNotificationListenerService : NotificationListenerService() {
             ServiceEntryPoint::class.java,
         )
         pipeline = entryPoint.pipeline()
+        settings = entryPoint.settingsRepository()
         packageManagerRef = applicationContext.packageManager
     }
 
     override fun onListenerConnected() {
         Log.i(TAG, "listener connected")
+        val store = settings ?: return
+        scope.launch { runCatching { store.setListenerConnectedSince(System.currentTimeMillis()) } }
+    }
+
+    override fun onListenerDisconnected() {
+        Log.w(TAG, "listener disconnected; requesting rebind")
+        settings?.let { store ->
+            scope.launch { runCatching { store.setListenerConnectedSince(null) } }
+        }
+        // Ask the system to rebind (best-effort recovery from an OEM background-kill).
+        runCatching {
+            NotificationListenerService.requestRebind(
+                ComponentName(this, ShushlyNotificationListenerService::class.java),
+            )
+        }
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification, rankingMap: RankingMap) {

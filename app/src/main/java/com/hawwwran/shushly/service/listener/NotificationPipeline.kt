@@ -154,6 +154,23 @@ class NotificationPipeline @Inject constructor(
         // Resilient: a DB failure must never break the decision pipeline.
         runCatching { history.record(entity) }
             .onFailure { Log.w(TAG, "history insert failed", it) }
+
+        updateAiHealth(decision, reasonCode, aiCalled)
+    }
+
+    /**
+     * Track AI-call health for the Home banner (visibility only — never changes the decision). Writes
+     * only on a transition: mark on an AI error, clear on a successful AI classify.
+     */
+    private suspend fun updateAiHealth(decision: Decision, reasonCode: DecisionReasonCode, aiCalled: Boolean) {
+        val current = settings.snapshot().aiUnavailableSince
+        when (AiHealthTracker.action(current, decision, reasonCode, aiCalled)) {
+            AiHealthAction.MARK_UNAVAILABLE ->
+                runCatching { settings.setAiUnavailableSince(System.currentTimeMillis()) }
+            AiHealthAction.CLEAR ->
+                runCatching { settings.setAiUnavailableSince(null) }
+            AiHealthAction.NONE -> {}
+        }
     }
 
     companion object {
