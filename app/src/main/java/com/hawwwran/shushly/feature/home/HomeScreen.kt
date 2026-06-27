@@ -290,7 +290,7 @@ private fun AiUnavailableBanner(sinceMs: Long) {
 }
 
 /**
- * Informational only: AI is optional. Without a verified relay, eligible notifications just stay
+ * Informational only: AI is optional. Without a verified OpenAI key, eligible notifications just stay
  * silent — so this row never blocks setup (it's not part of [ReadinessUi.minimumMet]) and has no Fix.
  */
 @Composable
@@ -306,7 +306,7 @@ private fun AiConnectionReadinessRow(verified: Boolean) {
             Text("AI connection verified", style = MaterialTheme.typography.bodyMedium)
             Text(
                 text = if (verified) {
-                    "Optional. A relay is connected and verified."
+                    "Optional. Your OpenAI key is configured and verified."
                 } else {
                     "Optional. Without it, eligible notifications just stay silent."
                 },
