@@ -20,17 +20,23 @@ private val Context.seenAppsDataStore: DataStore<Preferences> by preferencesData
 
 /**
  * Tracks which packages have actually posted notifications to Shushly's listener, as a per-package
- * hit count. This is the data source for the picker's "Most used apps" group. Backed by its own
- * DataStore Preferences file; not Room (a later increment).
+ * hit count — the data source for the picker's "Most used apps" group. An interface so the
+ * pipeline/picker can be unit-tested with a fake.
  */
+interface SeenAppsRepository {
+    /** package name → number of notifications seen from it. */
+    val seenCounts: Flow<Map<String, Int>>
+    fun record(packageName: String)
+}
+
+/** DataStore-backed [SeenAppsRepository] (its own Preferences file; not Room). */
 @Singleton
-class SeenAppsRepository @Inject constructor(
+class SeenAppsRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
-) {
+) : SeenAppsRepository {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    /** package name → number of notifications seen from it. */
-    val seenCounts: Flow<Map<String, Int>> = context.seenAppsDataStore.data.map { prefs ->
+    override val seenCounts: Flow<Map<String, Int>> = context.seenAppsDataStore.data.map { prefs ->
         prefs.asMap().entries.associate { (key, value) -> key.name to ((value as? Int) ?: 0) }
     }
 
@@ -38,7 +44,7 @@ class SeenAppsRepository @Inject constructor(
      * Fire-and-forget increment on an IO scope so the listener thread is never blocked. The read +
      * write happen inside one DataStore transaction, so concurrent records don't lose updates.
      */
-    fun record(packageName: String) {
+    override fun record(packageName: String) {
         if (packageName.isBlank()) return
         scope.launch {
             context.seenAppsDataStore.edit { prefs ->

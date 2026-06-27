@@ -1,9 +1,13 @@
 package com.hawwwran.shushly.di
 
+import com.hawwwran.shushly.core.data.DecisionHistoryRepository
+import com.hawwwran.shushly.core.data.DecisionHistoryRepositoryImpl
 import com.hawwwran.shushly.core.data.DeviceTokenStore
 import com.hawwwran.shushly.core.data.EncryptedDeviceTokenStore
 import com.hawwwran.shushly.core.data.InstalledAppRepository
 import com.hawwwran.shushly.core.data.InstalledAppRepositoryImpl
+import com.hawwwran.shushly.core.data.SeenAppsRepository
+import com.hawwwran.shushly.core.data.SeenAppsRepositoryImpl
 import com.hawwwran.shushly.core.data.SettingsRepository
 import com.hawwwran.shushly.core.data.SettingsRepositoryImpl
 import com.hawwwran.shushly.service.ai.AiClassifier
@@ -30,6 +34,12 @@ abstract class AppModule {
 
     @Binds
     abstract fun bindDeviceTokenStore(impl: EncryptedDeviceTokenStore): DeviceTokenStore
+
+    @Binds
+    abstract fun bindSeenAppsRepository(impl: SeenAppsRepositoryImpl): SeenAppsRepository
+
+    @Binds
+    abstract fun bindDecisionHistoryRepository(impl: DecisionHistoryRepositoryImpl): DecisionHistoryRepository
 
     @Binds
     abstract fun bindCriticalAlertSounder(impl: CriticalAlertSounderImpl): CriticalAlertSounder

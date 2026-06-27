@@ -60,6 +60,14 @@ android {
         buildConfig = true
     }
 
+    testOptions {
+        unitTests {
+            // Let android.util.Log (and other android.jar stubs) return defaults instead of throwing,
+            // so pipeline logic is testable in pure JVM without Robolectric.
+            isReturnDefaultValues = true
+        }
+    }
+
     packaging {
         resources {
             excludes += setOf(
