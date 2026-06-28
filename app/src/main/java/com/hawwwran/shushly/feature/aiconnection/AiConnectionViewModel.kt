@@ -6,9 +6,14 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hawwwran.shushly.core.data.ApiKeyStore
+import com.hawwwran.shushly.core.data.AppLearningRepository
 import com.hawwwran.shushly.core.data.SettingsRepository
+import com.hawwwran.shushly.core.data.db.AppLearningEntity
 import com.hawwwran.shushly.service.ai.OpenAiProvider
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -22,7 +27,16 @@ class AiConnectionViewModel @Inject constructor(
     private val settings: SettingsRepository,
     private val apiKeyStore: ApiKeyStore,
     private val openAiProvider: OpenAiProvider,
+    private val appLearnings: AppLearningRepository,
 ) : ViewModel() {
+
+    /** Everything Shushly has learned from the user's corrections, for the expandable list. */
+    val learnings: StateFlow<List<AppLearningEntity>> = appLearnings.observeAll()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun deleteLearning(id: Long) {
+        viewModelScope.launch { appLearnings.deleteById(id) }
+    }
 
     sealed interface TestStatus {
         data object Idle : TestStatus

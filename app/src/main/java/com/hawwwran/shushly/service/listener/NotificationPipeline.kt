@@ -38,6 +38,7 @@ class NotificationPipeline @Inject constructor(
     private val seenApps: SeenAppsRepository,
     private val history: DecisionHistoryRepository,
     private val lockState: LockStateProvider,
+    private val contentCache: RecentNotificationContentCache,
 ) {
 
     suspend fun process(sbn: StatusBarNotification, appLabel: String) {
@@ -102,6 +103,10 @@ class NotificationPipeline @Inject constructor(
             record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_DUPLICATE, null, aiCalled = false, wasAlerted = false)
             return
         }
+
+        // Keep the raw content briefly (in-memory, 3 h) so the user can, from Decision history, ask
+        // the AI to summarise this notification into a steering hint. Never persisted to disk.
+        contentCache.put(e.notificationKey.hashCode().toString(), e.packageName, e.appLabel, e.title, e.body, e.category)
 
         val result = try {
             classifier.classify(e.toRequest())

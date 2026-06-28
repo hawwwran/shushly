@@ -35,6 +35,7 @@ class NotificationPipelineTest {
         val sounder = RecordingSounder()
         val history = RecordingHistoryRepository()
         val seenApps = FakeSeenAppsRepository()
+        val contentCache = FakeRecentNotificationContentCache()
         val pipeline = NotificationPipeline(
             settings = settings,
             extractor = NotificationContentExtractor(),
@@ -45,6 +46,7 @@ class NotificationPipelineTest {
             seenApps = seenApps,
             history = history,
             lockState = lockState,
+            contentCache = contentCache,
         )
     }
 
@@ -59,6 +61,22 @@ class NotificationPipelineTest {
         assertEquals(1, h.sounder.callCount)
         assertTrue(h.history.last!!.wasAlerted)
         assertTrue(h.history.last!!.aiCalled)
+    }
+
+    // --- Steering content cache: kept only for notifications that reach the AI ---
+
+    @Test
+    fun classifierCalled_cachesContentForSteering() = runTest {
+        val h = Harness(settings(), ProgrammableClassifier(alert(0.80)))
+        h.pipeline.processExtracted(extracted(key = "k"))
+        assertEquals(listOf("k".hashCode().toString()), h.contentCache.puts)
+    }
+
+    @Test
+    fun skippedBeforeAi_doesNotCacheContent() = runTest {
+        val h = Harness(settings(smartQuiet = false), ProgrammableClassifier(alert(0.80)))
+        h.pipeline.processExtracted(extracted(key = "k"))
+        assertTrue(h.contentCache.puts.isEmpty())
     }
 
     @Test

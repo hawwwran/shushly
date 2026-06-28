@@ -62,6 +62,27 @@ class RecordingHistoryRepository : DecisionHistoryRepository {
     override suspend fun purgeOlderThan(cutoffMs: Long): Int = 0
 }
 
+/** Records every cached keyHash and serves them back (no TTL) for steering-cache assertions. */
+class FakeRecentNotificationContentCache : RecentNotificationContentCache {
+    val puts = mutableListOf<String>()
+    private val map = HashMap<String, RecentNotificationContentCache.Cached>()
+
+    override fun put(
+        keyHash: String,
+        packageName: String,
+        appLabel: String,
+        title: String?,
+        body: String?,
+        category: String?,
+    ) {
+        puts.add(keyHash)
+        map[keyHash] = RecentNotificationContentCache.Cached(packageName, appLabel, title, body, category)
+    }
+
+    override fun get(keyHash: String, packageName: String): RecentNotificationContentCache.Cached? =
+        map[keyHash]?.takeIf { it.packageName == packageName }
+}
+
 /** Returns a fixed [ClassificationResult], or throws [error] (to test fail-to-silent). */
 class ProgrammableClassifier(
     private val result: ClassificationResult? = null,

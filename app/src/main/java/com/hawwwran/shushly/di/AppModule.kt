@@ -1,6 +1,8 @@
 package com.hawwwran.shushly.di
 
 import com.hawwwran.shushly.core.data.ApiKeyStore
+import com.hawwwran.shushly.core.data.AppLearningRepository
+import com.hawwwran.shushly.core.data.AppLearningRepositoryImpl
 import com.hawwwran.shushly.core.data.DecisionHistoryRepository
 import com.hawwwran.shushly.core.data.DecisionHistoryRepositoryImpl
 import com.hawwwran.shushly.core.data.EncryptedApiKeyStore
@@ -11,9 +13,13 @@ import com.hawwwran.shushly.core.data.SeenAppsRepositoryImpl
 import com.hawwwran.shushly.core.data.SettingsRepository
 import com.hawwwran.shushly.core.data.SettingsRepositoryImpl
 import com.hawwwran.shushly.service.ai.AiClassifier
+import com.hawwwran.shushly.service.ai.LearningDigester
+import com.hawwwran.shushly.service.ai.LearningDigesterImpl
 import com.hawwwran.shushly.service.ai.RoutingAiClassifier
 import com.hawwwran.shushly.service.alerting.CriticalAlertSounder
 import com.hawwwran.shushly.service.alerting.CriticalAlertSounderImpl
+import com.hawwwran.shushly.service.listener.InMemoryRecentNotificationContentCache
+import com.hawwwran.shushly.service.listener.RecentNotificationContentCache
 import com.hawwwran.shushly.service.quietmode.LockStateProvider
 import com.hawwwran.shushly.service.quietmode.LockStateProviderImpl
 import com.hawwwran.shushly.service.quietmode.QuietModeController
@@ -32,6 +38,9 @@ abstract class AppModule {
     abstract fun bindAiClassifier(impl: RoutingAiClassifier): AiClassifier
 
     @Binds
+    abstract fun bindLearningDigester(impl: LearningDigesterImpl): LearningDigester
+
+    @Binds
     abstract fun bindSettingsRepository(impl: SettingsRepositoryImpl): SettingsRepository
 
     @Binds
@@ -42,6 +51,14 @@ abstract class AppModule {
 
     @Binds
     abstract fun bindDecisionHistoryRepository(impl: DecisionHistoryRepositoryImpl): DecisionHistoryRepository
+
+    @Binds
+    abstract fun bindAppLearningRepository(impl: AppLearningRepositoryImpl): AppLearningRepository
+
+    @Binds
+    abstract fun bindRecentNotificationContentCache(
+        impl: InMemoryRecentNotificationContentCache,
+    ): RecentNotificationContentCache
 
     @Binds
     abstract fun bindCriticalAlertSounder(impl: CriticalAlertSounderImpl): CriticalAlertSounder

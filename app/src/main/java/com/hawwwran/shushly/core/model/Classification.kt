@@ -35,6 +35,17 @@ enum class DecisionReasonCode {
     ERROR_QUIET_MODE_UNAVAILABLE,
 }
 
+/**
+ * One user-taught steering hint for a single app: "this kind of notification should [desiredDecision]".
+ * [digest] is an AI-written, generalised, no-PII topic phrase (e.g. "extreme weather warning") — never
+ * raw notification text. Created from a decision-history correction and replayed into every later
+ * request for the same app so the AI improves as the user steers it.
+ */
+data class AppLearning(
+    val desiredDecision: Decision,
+    val digest: String,
+)
+
 /** What the classifier is asked about (already redacted/normalized). */
 data class ClassificationRequest(
     val packageName: String,
@@ -43,6 +54,8 @@ data class ClassificationRequest(
     val body: String?,
     val category: String?,
     val postedAt: Instant,
+    /** The user's past corrections for this app, injected as advisory guidance (default: none). */
+    val appLearnings: List<AppLearning> = emptyList(),
 )
 
 /** Validated classifier outcome. */

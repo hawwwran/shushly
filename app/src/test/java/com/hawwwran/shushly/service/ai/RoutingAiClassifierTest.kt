@@ -45,7 +45,7 @@ class RoutingAiClassifierTest {
     )
 
     private class StubDirect(private val result: ClassificationResult) :
-        DirectAiClassifier(FakeSettingsRepository(), FakeApiKeyStore(), OpenAiProvider(OkHttpClient(), Json {}, "https://api.openai.com")) {
+        DirectAiClassifier(FakeSettingsRepository(), FakeApiKeyStore(), OpenAiProvider(OkHttpClient(), Json {}, "https://api.openai.com"), FakeAppLearningRepository()) {
         var called = false
         override suspend fun classify(request: ClassificationRequest): ClassificationResult {
             called = true

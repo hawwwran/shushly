@@ -1,5 +1,6 @@
 package com.hawwwran.shushly.service.ai
 
+import com.hawwwran.shushly.core.model.AppLearning
 import com.hawwwran.shushly.core.model.ClassificationRequest
 import com.hawwwran.shushly.core.model.Decision
 import com.hawwwran.shushly.core.model.DecisionReasonCode
@@ -11,6 +12,7 @@ import mockwebserver3.MockWebServer
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -195,4 +197,84 @@ class OpenAiProviderTest {
         assertTrue(result is OpenAiProvider.KeyCheck.Invalid)
         assertEquals("HTTP 401", (result as OpenAiProvider.KeyCheck.Invalid).reason)
     }
+
+    // --- Behavior steering: learnings injected into classify, and the on-demand digest call ---
+
+    @Test
+    fun classify_injectsAppLearningsIntoSystemPrompt() = runTest {
+        server.enqueue(
+            MockResponse.Builder().code(200)
+                .body(chatResponse(classification("silent", "SILENT_ROUTINE", confidence = "0.3")))
+                .build(),
+        )
+        val req = request.copy(
+            appLearnings = listOf(
+                AppLearning(Decision.ALERT, "extreme weather warning"),
+                AppLearning(Decision.SILENT, "routine political news"),
+            ),
+        )
+        provider().classify(req, "sk", "gpt-4.1-mini", null)
+
+        val body = server.takeRequest().body?.utf8().orEmpty()
+        assertTrue(body.contains("Learned preferences for this app"))
+        assertTrue(body.contains("Usually ALERT: extreme weather warning"))
+        assertTrue(body.contains("Usually SILENT: routine political news"))
+    }
+
+    @Test
+    fun classify_noLearnings_omitsLearnedBlock() = runTest {
+        server.enqueue(
+            MockResponse.Builder().code(200)
+                .body(chatResponse(classification("silent", "SILENT_ROUTINE", confidence = "0.3")))
+                .build(),
+        )
+        provider().classify(request, "sk", "gpt-4.1-mini", null)
+        val body = server.takeRequest().body?.utf8().orEmpty()
+        assertFalse(body.contains("Learned preferences for this app"))
+    }
+
+    @Test
+    fun summarizeForLearning_returnsDigest_andHitsChatCompletions() = runTest {
+        server.enqueue(MockResponse.Builder().code(200).body(digestResponse("extreme weather warning")).build())
+        val out = provider().summarizeForLearning(
+            appLabel = "Example", title = "t", body = "b", category = "msg",
+            desiredDecision = Decision.ALERT, apiKey = "sk", model = "gpt-4.1-mini",
+        )
+        assertEquals("extreme weather warning", out)
+
+        val rec = server.takeRequest()
+        assertEquals("POST", rec.method)
+        assertEquals("/v1/chat/completions", rec.target)
+        assertTrue(rec.body?.utf8().orEmpty().contains("topic_digest")) // strict schema name
+    }
+
+    @Test
+    fun summarizeForLearning_sanitisesAndBounds() = runTest {
+        server.enqueue(MockResponse.Builder().code(200).body(digestResponse("  big\n\tstorm   warning  ")).build())
+        val out = provider().summarizeForLearning("Example", "t", "b", null, Decision.SILENT, "sk", "m")
+        assertEquals("big storm warning", out)
+
+        server.enqueue(MockResponse.Builder().code(200).body(digestResponse("a".repeat(120))).build())
+        val long = provider().summarizeForLearning("Example", "t", "b", null, Decision.SILENT, "sk", "m")
+        assertEquals(80, long.length)
+    }
+
+    @Test
+    fun summarizeForLearning_malformed_throws() = runTest {
+        server.enqueue(MockResponse.Builder().code(200).body(chatResponse("{not json")).build())
+        assertThrowsAny {
+            provider().summarizeForLearning("Example", "t", "b", null, Decision.ALERT, "sk", "m")
+        }
+    }
+
+    @Test
+    fun summarizeForLearning_http500_throws() = runTest {
+        server.enqueue(MockResponse.Builder().code(500).body("oops").build())
+        assertThrowsAny {
+            provider().summarizeForLearning("Example", "t", "b", null, Decision.ALERT, "sk", "m")
+        }
+    }
+
+    private fun digestResponse(digest: String): String =
+        chatResponse("""{"topic_digest":${JsonPrimitive(digest)}}""")
 }
