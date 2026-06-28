@@ -15,7 +15,6 @@ class ProtectedSourcePolicyTest {
         title: String? = null,
         body: String? = "Lunch?",
         category: String? = null,
-        isOngoing: Boolean = false,
     ) = ExtractedNotification(
         notificationKey = "key",
         packageName = packageName,
@@ -24,7 +23,7 @@ class ProtectedSourcePolicyTest {
         title = title,
         body = body,
         category = category,
-        isOngoing = isOngoing,
+        isPersistent = false,
         isGroupSummary = false,
         contentIntent = null,
     )
@@ -56,11 +55,6 @@ class ProtectedSourcePolicyTest {
     @Test
     fun isProtected_byAlarmCategory() {
         assertTrue(ProtectedSourcePolicy.isProtected(notification(category = Notification.CATEGORY_ALARM)))
-    }
-
-    @Test
-    fun isProtected_byOngoing() {
-        assertTrue(ProtectedSourcePolicy.isProtected(notification(isOngoing = true)))
     }
 
     @Test

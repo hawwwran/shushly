@@ -5,7 +5,7 @@ import com.hawwwran.shushly.core.model.ExtractedNotification
 
 /**
  * Conservative, code-owned policy for sources that must never be analysed or re-alerted
- * (spec §3.5). The package list is a best-effort seed; the category/flag and OTP-shape
+ * (spec §3.5). The package list is a best-effort seed; the category and OTP-shape
  * checks are the robust part. Editable only by app update in V1.
  */
 object ProtectedSourcePolicy {
@@ -42,7 +42,6 @@ object ProtectedSourcePolicy {
     fun isProtected(notification: ExtractedNotification): Boolean {
         if (notification.packageName in PROTECTED_PACKAGES) return true
         if (notification.category in PROTECTED_CATEGORIES) return true
-        if (notification.isOngoing) return true
         if (looksLikeOtp(notification.combinedText)) return true
         return false
     }

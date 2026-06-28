@@ -32,10 +32,13 @@ class FakeLockStateProvider(var inUse: Boolean = false) : LockStateProvider {
     override fun isInUse(): Boolean = inUse
 }
 
-/** No-op seen-apps tracking (the pipeline records but never reads it in these tests). */
+/** Captures recorded packages (the pipeline records but never reads seen counts in these tests). */
 class FakeSeenAppsRepository : SeenAppsRepository {
+    val recorded = mutableListOf<String>()
     override val seenCounts: Flow<Map<String, Int>> = flowOf(emptyMap())
-    override fun record(packageName: String) {}
+    override fun record(packageName: String) {
+        recorded.add(packageName)
+    }
 }
 
 /** Captures every recorded decision; other methods are no-ops/empty. */

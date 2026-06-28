@@ -27,7 +27,9 @@ class NotificationContentExtractor @Inject constructor() {
             title = title,
             body = body,
             category = n.category,
-            isOngoing = (n.flags and Notification.FLAG_ONGOING_EVENT) != 0,
+            // Non-clearable covers both FLAG_ONGOING_EVENT and FLAG_NO_CLEAR — the full set of
+            // "static" notifications the user never needs alerting about.
+            isPersistent = !sbn.isClearable(),
             isGroupSummary = (n.flags and Notification.FLAG_GROUP_SUMMARY) != 0,
             contentIntent = n.contentIntent,
         )

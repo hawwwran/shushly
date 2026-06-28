@@ -44,6 +44,15 @@ class NotificationPipeline @Inject constructor(
     }
 
     suspend fun processExtracted(e: ExtractedNotification) {
+        // "Static" notifications (ongoing or non-clearable: foreground-service icons, media controls,
+        // download progress, "USB charging") are shown continuously rather than signalling an event.
+        // They flood history and never warrant an alert, so Shushly ignores them outright — no AI, no
+        // history, not even learned as a seen app.
+        if (e.isPersistent) {
+            Log.d(TAG, "${e.packageName}: ignoring static (persistent) notification")
+            return
+        }
+
         // Learn which apps notify (feeds the picker's "Most used apps"), even while Quiet Mode is off.
         seenApps.record(e.packageName)
 

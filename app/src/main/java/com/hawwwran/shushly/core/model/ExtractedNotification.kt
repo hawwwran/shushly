@@ -15,7 +15,8 @@ data class ExtractedNotification(
     val title: String?,
     val body: String?,
     val category: String?,
-    val isOngoing: Boolean,
+    /** Ongoing or non-clearable: a continuously shown "static" notification, not a discrete event. */
+    val isPersistent: Boolean,
     val isGroupSummary: Boolean,
     val contentIntent: PendingIntent?,
 ) {

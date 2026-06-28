@@ -34,6 +34,7 @@ class NotificationPipelineTest {
     ) {
         val sounder = RecordingSounder()
         val history = RecordingHistoryRepository()
+        val seenApps = FakeSeenAppsRepository()
         val pipeline = NotificationPipeline(
             settings = settings,
             extractor = NotificationContentExtractor(),
@@ -41,7 +42,7 @@ class NotificationPipelineTest {
             dedupe = dedupe,
             classifier = classifier,
             sounder = sounder,
-            seenApps = FakeSeenAppsRepository(),
+            seenApps = seenApps,
             history = history,
             lockState = lockState,
         )
@@ -116,6 +117,18 @@ class NotificationPipelineTest {
     }
 
     // --- Skip branches ---
+
+    @Test
+    fun persistentNotification_isIgnoredOutright_noHistory_noSeenApp_noAi() = runTest {
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(settings(), classifier)
+        h.pipeline.processExtracted(extracted(isPersistent = true))
+
+        assertTrue(h.history.recorded.isEmpty())
+        assertTrue(h.seenApps.recorded.isEmpty())
+        assertEquals(0, h.sounder.callCount)
+        assertEquals(0, classifier.callCount)
+    }
 
     @Test
     fun smartQuietModeOff_skips_withoutCallingAi() = runTest {
@@ -399,7 +412,7 @@ private fun extracted(
     title: String? = "Heads up",
     body: String? = "Production deployment failed, action needed",
     category: String? = null,
-    isOngoing: Boolean = false,
+    isPersistent: Boolean = false,
     isGroupSummary: Boolean = false,
 ): ExtractedNotification = ExtractedNotification(
     notificationKey = key,
@@ -409,7 +422,7 @@ private fun extracted(
     title = title,
     body = body,
     category = category,
-    isOngoing = isOngoing,
+    isPersistent = isPersistent,
     isGroupSummary = isGroupSummary,
     contentIntent = null,
 )
