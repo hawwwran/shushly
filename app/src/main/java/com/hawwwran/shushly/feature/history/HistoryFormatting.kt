@@ -31,19 +31,15 @@ internal fun decisionLabel(entity: DecisionHistoryEntity): String = when (entity
     Decision.SILENT -> "SILENT"
     Decision.SKIPPED -> "SKIPPED"
     Decision.ERROR -> "ERROR"
-    Decision.WOULD_ALERT -> "WOULD ALERT"
     null -> entity.decision
 }
 
 /** Renders one entry as a lifecycle: seen -> eligibility -> AI call -> decision. */
 internal fun lifecycleText(entity: DecisionHistoryEntity): String {
     val reason = entity.reasonOrNull()
-    // Always-alert apps sound (or would, or are held back) without ever calling the AI.
+    // Always-alert apps sound without ever calling the AI.
     if (reason == DecisionReasonCode.ALERT_ALWAYS) {
-        return when (entity.decisionOrNull()) {
-            Decision.WOULD_ALERT -> "seen → always-alert app → would sound (simulation)"
-            else -> "seen → always-alert app → sounded (no AI)"
-        }
+        return "seen → always-alert app → sounded (no AI)"
     }
     if (!entity.aiCalled) {
         val why = when (reason) {
@@ -62,7 +58,6 @@ internal fun lifecycleText(entity: DecisionHistoryEntity): String {
     val outcome = when (entity.decisionOrNull()) {
         Decision.ALERT -> if (entity.wasAlerted) "ALERT → sounded" else "ALERT"
         Decision.SILENT -> "SILENT"
-        Decision.WOULD_ALERT -> "WOULD ALERT (simulation)"
         Decision.ERROR -> "ERROR → stayed silent"
         Decision.SKIPPED ->
             if (reason == DecisionReasonCode.SKIPPED_RATE_LIMIT) "ALERT but rate-limited (held back)"

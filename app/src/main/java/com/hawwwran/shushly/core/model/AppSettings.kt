@@ -11,7 +11,6 @@ data class AppSettings(
     val vibrateForCriticalAlerts: Boolean = true,
     /** URI of the chosen alert tone; null = the system default notification tone. */
     val alertSoundUri: String? = null,
-    val simulationModeEnabled: Boolean = false,
     val eligibilityMode: EligibilityMode = EligibilityMode.ALL_APPS_EXCEPT_SELECTED,
     val selectedPackages: Set<String> = emptySet(),
     /** Apps that always sound on every notification, bypassing the AI (beats eligibility). */

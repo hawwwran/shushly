@@ -31,7 +31,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -128,10 +127,6 @@ fun HomeScreen(
                 style = MaterialTheme.typography.bodyMedium,
             )
 
-            if (settings.simulationModeEnabled) {
-                SimulationBanner()
-            }
-
             val aiUnavailableSince = settings.aiUnavailableSince
             if (aiUnavailableSince != null && settings.smartQuietModeEnabled && settings.aiConnection.isVerified) {
                 AiUnavailableBanner(sinceMs = aiUnavailableSince)
@@ -173,11 +168,6 @@ fun HomeScreen(
                 onPreview = viewModel::previewAlertSound,
             )
 
-            SimulationCard(
-                simulationOn = settings.simulationModeEnabled,
-                onSimulationChange = viewModel::setSimulationMode,
-            )
-
             EligibilityCard(
                 mode = settings.eligibilityMode,
                 selectedCount = settings.selectedPackages.size,
@@ -188,13 +178,6 @@ fun HomeScreen(
             AlwaysAlertCard(
                 count = settings.alwaysAlertPackages.size,
                 onChooseApps = { onChooseApps(PickerTarget.ALWAYS_ALERT) },
-            )
-
-            DebugCard(
-                quietOn = settings.smartQuietModeEnabled,
-                simulationOn = settings.simulationModeEnabled,
-                onFireAlert = { viewModel.fireTest(alert = true) },
-                onFireSilent = { viewModel.fireTest(alert = false) },
             )
 
             OutlinedButton(onClick = onOpenHistory, modifier = Modifier.fillMaxWidth()) {
@@ -554,72 +537,3 @@ private fun ModeOption(label: String, supporting: String, selected: Boolean, onC
     }
 }
 
-@Composable
-private fun SimulationBanner() {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.secondaryContainer,
-        shape = MaterialTheme.shapes.medium,
-    ) {
-        Text(
-            text = "Simulation mode on — important alerts are logged, not sounded.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            modifier = Modifier.padding(12.dp),
-        )
-    }
-}
-
-@Composable
-private fun SimulationCard(simulationOn: Boolean, onSimulationChange: (Boolean) -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    "Simulation mode",
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Switch(checked = simulationOn, onCheckedChange = onSimulationChange)
-            }
-            Text(
-                text = "Test what Shushly would do — notifications are classified and logged, but it never makes a sound.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-        }
-    }
-}
-
-@Composable
-private fun DebugCard(
-    quietOn: Boolean,
-    simulationOn: Boolean,
-    onFireAlert: () -> Unit,
-    onFireSilent: () -> Unit,
-) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Developer", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-            Text(
-                text = if (quietOn) {
-                    "Push a synthesized notification through the real pipeline."
-                } else {
-                    "Turn on Smart Quiet Mode first; otherwise these are skipped."
-                },
-                style = MaterialTheme.typography.bodySmall,
-            )
-            if (simulationOn) {
-                Text(
-                    text = "Simulation mode is on — TEST_ALERT is logged as WOULD_ALERT, not sounded.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onFireAlert, modifier = Modifier.weight(1f)) { Text("Fire TEST_ALERT") }
-                OutlinedButton(onClick = onFireSilent, modifier = Modifier.weight(1f)) { Text("Fire TEST_SILENT") }
-            }
-        }
-    }
-}

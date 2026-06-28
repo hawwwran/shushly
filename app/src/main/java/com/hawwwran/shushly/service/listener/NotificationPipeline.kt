@@ -14,13 +14,12 @@ import com.hawwwran.shushly.core.policy.ProtectedSourcePolicy
 import com.hawwwran.shushly.service.ai.AiClassifier
 import com.hawwwran.shushly.service.alerting.CriticalAlertSounder
 import com.hawwwran.shushly.service.quietmode.LockStateProvider
-import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * The decision pipeline (spec §7.2): eligibility → protected-source → text → dedupe →
- * classify → threshold → simulation → sound. Fails safe to silent (§3.4).
+ * classify → threshold → sound. Fails safe to silent (§3.4).
  *
  * An important notification (ALERT at/above threshold) plays a sound immediately (sound-only; no
  * notification is posted). The only audible rate limit is a global anti-storm backstop (see
@@ -44,30 +43,9 @@ class NotificationPipeline @Inject constructor(
         processExtracted(extracted)
     }
 
-    /** Drives a synthesized notification through the real pipeline (debug trigger, spec §8.8). */
-    suspend fun debugFire(triggerText: String) {
-        processExtracted(
-            ExtractedNotification(
-                notificationKey = "$DEBUG_KEY_PREFIX${System.nanoTime()}",
-                packageName = DEMO_PACKAGE,
-                appLabel = DEMO_LABEL,
-                postedAt = Instant.ofEpochMilli(System.currentTimeMillis()),
-                title = DEMO_LABEL,
-                body = triggerText,
-                category = null,
-                isOngoing = false,
-                isGroupSummary = false,
-                contentIntent = null,
-            ),
-        )
-    }
-
     suspend fun processExtracted(e: ExtractedNotification) {
-        // Learn which apps notify (feeds the picker's "Most used apps"), even while Quiet Mode is
-        // off. Exclude the synthesized debug path so TEST_ALERT/TEST_SILENT don't pollute the list.
-        if (!e.notificationKey.startsWith(DEBUG_KEY_PREFIX) && e.packageName != DEMO_PACKAGE) {
-            seenApps.record(e.packageName)
-        }
+        // Learn which apps notify (feeds the picker's "Most used apps"), even while Quiet Mode is off.
+        seenApps.record(e.packageName)
 
         val s = settings.snapshot()
 
@@ -86,13 +64,9 @@ class NotificationPipeline @Inject constructor(
             return
         }
         // Always-alert: sound on every notification, bypassing the AI and the eligibility/text/dedupe/
-        // group-summary checks. Still gated by simulation and the global anti-storm backstop. Protected
-        // sources are checked first, so they always win.
+        // group-summary checks. Still gated by the global anti-storm backstop. Protected sources are
+        // checked first, so they always win.
         if (e.packageName in s.alwaysAlertPackages) {
-            if (s.simulationModeEnabled) {
-                record(e, Decision.WOULD_ALERT, DecisionReasonCode.ALERT_ALWAYS, "Always-alert (simulated)", aiCalled = false, wasAlerted = false)
-                return
-            }
             if (!dedupe.tryConsumeGlobalAlertSlot()) {
                 record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_RATE_LIMIT, "Too many alerts just now — held back.", aiCalled = false, wasAlerted = false)
                 return
@@ -129,10 +103,6 @@ class NotificationPipeline @Inject constructor(
         val shouldAlert = result.decision == Decision.ALERT && result.confidence >= ALERT_THRESHOLD
         if (!shouldAlert) {
             record(e, Decision.SILENT, result.reasonCode, result.userVisibleReason, aiCalled = true, wasAlerted = false)
-            return
-        }
-        if (s.simulationModeEnabled) {
-            record(e, Decision.WOULD_ALERT, result.reasonCode, result.userVisibleReason, aiCalled = true, wasAlerted = false)
             return
         }
 
@@ -199,9 +169,6 @@ class NotificationPipeline @Inject constructor(
 
     companion object {
         const val ALERT_THRESHOLD = 0.80
-        const val DEBUG_KEY_PREFIX = "debug-"
         private const val TAG = "ShushlyPipeline"
-        private const val DEMO_PACKAGE = "com.demo.testapp"
-        private const val DEMO_LABEL = "Demo App"
     }
 }

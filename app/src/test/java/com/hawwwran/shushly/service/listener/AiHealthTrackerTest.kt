@@ -47,14 +47,6 @@ class AiHealthTrackerTest {
     }
 
     @Test
-    fun wouldAlert_whenMarked_clears() {
-        assertEquals(
-            AiHealthAction.CLEAR,
-            action(123L, Decision.WOULD_ALERT, DecisionReasonCode.ALERT_WORK_INCIDENT, aiCalled = true),
-        )
-    }
-
-    @Test
     fun successfulClassify_whenAlreadyClear_noChange() {
         assertEquals(
             AiHealthAction.NONE,

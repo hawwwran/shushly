@@ -12,7 +12,6 @@ import com.hawwwran.shushly.core.model.EligibilityMode
 import com.hawwwran.shushly.readiness.ReadinessChecker
 import com.hawwwran.shushly.service.alerting.CriticalAlertSounder
 import com.hawwwran.shushly.service.alerting.NotificationChannels
-import com.hawwwran.shushly.service.listener.NotificationPipeline
 import com.hawwwran.shushly.service.quietmode.QuietModeController
 import com.hawwwran.shushly.service.quietmode.QuietModeState
 import com.hawwwran.shushly.service.quietmode.SmartQuietModeManager
@@ -46,7 +45,6 @@ class HomeViewModel @Inject constructor(
     private val settings: SettingsRepository,
     private val quietMode: QuietModeController,
     private val readiness: ReadinessChecker,
-    private val pipeline: NotificationPipeline,
     private val smartQuietMode: SmartQuietModeManager,
     private val sounder: CriticalAlertSounder,
 ) : ViewModel() {
@@ -122,20 +120,7 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch { settings.setEligibilityMode(mode) }
     }
 
-    fun setSimulationMode(enabled: Boolean) {
-        viewModelScope.launch { settings.setSimulationMode(enabled) }
-    }
-
     fun completeOnboarding() {
         viewModelScope.launch { settings.setOnboardingComplete(true) }
-    }
-
-    fun fireTest(alert: Boolean) {
-        val text = if (alert) {
-            "Production deployment failed, action needed TEST_ALERT"
-        } else {
-            "Just saying hi, nothing urgent TEST_SILENT"
-        }
-        viewModelScope.launch { pipeline.debugFire(text) }
     }
 }

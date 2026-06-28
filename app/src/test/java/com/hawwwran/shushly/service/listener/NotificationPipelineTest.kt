@@ -1,5 +1,5 @@
 /*
- * Pipeline-level decision tests (spec §16.1): threshold, fail-to-silent, simulation, the anti-storm
+ * Pipeline-level decision tests (spec §16.1): threshold, fail-to-silent, the anti-storm
  * backstop, vibrate propagation, and every skip branch. Pure JVM with recording test doubles — the
  * pure collaborators (extractor / eligibility / dedupe) are the real ones.
  *
@@ -82,19 +82,6 @@ class NotificationPipelineTest {
         assertEquals(DecisionReasonCode.ERROR_AI_UNAVAILABLE.name, h.history.last?.reasonCode)
         assertEquals(0, h.sounder.callCount)
         assertTrue(h.history.last!!.aiCalled)
-    }
-
-    // --- Simulation (§14.2) ---
-
-    @Test
-    fun simulationMode_highConfidenceAlert_recordsWouldAlert_notSounded() = runTest {
-        val h = Harness(settings(simulation = true), ProgrammableClassifier(alert(0.95)))
-        h.pipeline.processExtracted(extracted())
-
-        assertEquals(Decision.WOULD_ALERT.name, h.history.last?.decision)
-        assertEquals(0, h.sounder.callCount)
-        assertTrue(h.history.last!!.aiCalled)
-        assertFalse(h.history.last!!.wasAlerted)
     }
 
     // --- Anti-storm backstop (§7.5) ---
@@ -295,18 +282,6 @@ class NotificationPipelineTest {
     }
 
     @Test
-    fun alwaysAlert_simulation_recordsWouldAlert_notSounded() = runTest {
-        val classifier = ProgrammableClassifier(alert(0.95))
-        val h = Harness(settings(simulation = true, always = setOf("com.example.app")), classifier)
-        h.pipeline.processExtracted(extracted(pkg = "com.example.app"))
-
-        assertEquals(Decision.WOULD_ALERT.name, h.history.last?.decision)
-        assertEquals(DecisionReasonCode.ALERT_ALWAYS.name, h.history.last?.reasonCode)
-        assertEquals(0, h.sounder.callCount)
-        assertEquals(0, classifier.callCount)
-    }
-
-    @Test
     fun alwaysAlert_backstopTripped_recordsRateLimit_notSounded() = runTest {
         val classifier = ProgrammableClassifier(alert(0.95))
         val h = Harness(settings(always = setOf("com.example.app")), classifier)
@@ -391,7 +366,6 @@ class NotificationPipelineTest {
 
 private fun settings(
     smartQuiet: Boolean = true,
-    simulation: Boolean = false,
     vibrate: Boolean = true,
     eligibilityMode: EligibilityMode = EligibilityMode.ALL_APPS_EXCEPT_SELECTED,
     selected: Set<String> = emptySet(),
@@ -402,7 +376,6 @@ private fun settings(
     AppSettings(
         smartQuietModeEnabled = smartQuiet,
         activeWhenLocked = activeWhenLocked,
-        simulationModeEnabled = simulation,
         vibrateForCriticalAlerts = vibrate,
         eligibilityMode = eligibilityMode,
         selectedPackages = selected,

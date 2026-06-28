@@ -3,7 +3,7 @@ package com.hawwwran.shushly.core.model
 import java.time.Instant
 
 /** Outcome of evaluating a single notification. */
-enum class Decision { ALERT, SILENT, SKIPPED, ERROR, WOULD_ALERT }
+enum class Decision { ALERT, SILENT, SKIPPED, ERROR }
 
 /** Stable reason codes for every decision and skip path (spec §15.1). */
 enum class DecisionReasonCode {

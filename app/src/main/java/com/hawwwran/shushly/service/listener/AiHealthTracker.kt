@@ -10,7 +10,7 @@ enum class AiHealthAction { NONE, MARK_UNAVAILABLE, CLEAR }
  * Pure transition for the AI-health flag (`aiUnavailableSince`). Visibility only — it never changes
  * the decision (AI errors still fail safe to silent). Writes happen only on a state transition:
  *  - mark when an AI call errors (ERROR / ERROR_AI_UNAVAILABLE) and the flag is currently clear;
- *  - clear when an AI call succeeds (aiCalled and decision in ALERT/SILENT/WOULD_ALERT) and it is set.
+ *  - clear when an AI call succeeds (aiCalled and decision in ALERT/SILENT) and it is set.
  * Skips (no AI call) and unchanged states yield [AiHealthAction.NONE].
  */
 object AiHealthTracker {
@@ -21,9 +21,7 @@ object AiHealthTracker {
         aiCalled: Boolean,
     ): AiHealthAction {
         val isAiError = decision == Decision.ERROR && reasonCode == DecisionReasonCode.ERROR_AI_UNAVAILABLE
-        val isAiSuccess = aiCalled && (
-            decision == Decision.ALERT || decision == Decision.SILENT || decision == Decision.WOULD_ALERT
-            )
+        val isAiSuccess = aiCalled && (decision == Decision.ALERT || decision == Decision.SILENT)
         return when {
             isAiError && current == null -> AiHealthAction.MARK_UNAVAILABLE
             isAiSuccess && current != null -> AiHealthAction.CLEAR

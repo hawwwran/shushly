@@ -1,6 +1,6 @@
 /*
  * JVM unit tests for the pure decision units (spec §16.1). Pipeline-level tests (alert threshold,
- * fail-to-silent on classify error, simulation WOULD_ALERT, backstop integration) are deferred:
+ * fail-to-silent on classify error, backstop integration) are deferred:
  * NotificationPipeline depends on the concrete SettingsRepository (DataStore) and other concretes,
  * so it isn't cleanly unit-testable without a small refactor (extract a SettingsRepository interface,
  * or use Robolectric). Out of scope for this increment.

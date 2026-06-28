@@ -33,7 +33,6 @@ interface SettingsRepository {
     suspend fun setActiveWhenLocked(on: Boolean)
     suspend fun setVibrate(enabled: Boolean)
     suspend fun setAlertSound(uri: String?)
-    suspend fun setSimulationMode(enabled: Boolean)
     suspend fun setEligibilityMode(mode: EligibilityMode)
     suspend fun setSelectedPackages(packages: Set<String>)
     suspend fun setAlwaysAlertPackages(packages: Set<String>)
@@ -57,7 +56,6 @@ class SettingsRepositoryImpl @Inject constructor(
         val ACTIVE_WHEN_LOCKED = booleanPreferencesKey("active_when_locked")
         val VIBRATE = booleanPreferencesKey("vibrate_critical")
         val ALERT_SOUND_URI = stringPreferencesKey("alert_sound_uri")
-        val SIMULATION = booleanPreferencesKey("simulation_enabled")
         val ELIGIBILITY_MODE = stringPreferencesKey("eligibility_mode")
         val SELECTED = stringSetPreferencesKey("selected_packages")
         val ALWAYS_ALERT = stringSetPreferencesKey("always_alert_packages")
@@ -87,9 +85,6 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setAlertSound(uri: String?) =
         edit { prefs -> if (uri == null) prefs.remove(Keys.ALERT_SOUND_URI) else prefs[Keys.ALERT_SOUND_URI] = uri }
-
-    override suspend fun setSimulationMode(enabled: Boolean) =
-        edit { it[Keys.SIMULATION] = enabled }
 
     override suspend fun setEligibilityMode(mode: EligibilityMode) =
         edit { it[Keys.ELIGIBILITY_MODE] = mode.name }
@@ -138,7 +133,6 @@ class SettingsRepositoryImpl @Inject constructor(
         activeWhenLocked = this[Keys.ACTIVE_WHEN_LOCKED] ?: true,
         vibrateForCriticalAlerts = this[Keys.VIBRATE] ?: true,
         alertSoundUri = this[Keys.ALERT_SOUND_URI],
-        simulationModeEnabled = this[Keys.SIMULATION] ?: false,
         eligibilityMode = this[Keys.ELIGIBILITY_MODE]
             ?.let { runCatching { EligibilityMode.valueOf(it) }.getOrNull() }
             ?: EligibilityMode.ALL_APPS_EXCEPT_SELECTED,
