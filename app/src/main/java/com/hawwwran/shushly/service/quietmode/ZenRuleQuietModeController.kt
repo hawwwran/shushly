@@ -99,12 +99,12 @@ class ZenRuleQuietModeController @Inject constructor(
         }
     }
 
-    /** Reuse the persisted rule if the OS still knows it, else create a fresh one. */
+    /**
+     * Reuse the persisted rule if the OS still knows it, else create a fresh one. An existing rule
+     * has its policy refreshed so changes shipped in an app update (e.g. now allowing calls) reach
+     * installs that already created the rule.
+     */
     private fun ensureRule(prevId: String?): String {
-        if (prevId != null) {
-            val existing = runCatching { nm.getAutomaticZenRule(prevId) }.getOrNull()
-            if (existing != null) return prevId
-        }
         @Suppress("DEPRECATION")
         val rule = AutomaticZenRule(
             "Shushly Smart Quiet Mode",
@@ -115,16 +115,29 @@ class ZenRuleQuietModeController @Inject constructor(
             NotificationManager.INTERRUPTION_FILTER_PRIORITY,
             true,
         )
+        if (prevId != null) {
+            val existing = runCatching { nm.getAutomaticZenRule(prevId) }.getOrNull()
+            if (existing != null) {
+                runCatching { nm.updateAutomaticZenRule(prevId, rule) }
+                return prevId
+            }
+        }
         return nm.addAutomaticZenRule(rule)
     }
 
-    /** Silence everything except alarms; let priority channels (our critical_alerts) through. */
+    /**
+     * Silence everything except alarms and incoming calls; let priority channels (our
+     * critical_alerts) through. Calls from anyone — plus repeat callers — always ring, so Quiet
+     * Mode never makes you miss a phone call.
+     */
     private fun buildZenPolicy(): ZenPolicy {
         val builder = ZenPolicy.Builder()
             .disallowAllSounds()
             .allowAlarms(true)
             .allowMedia(false)
             .allowSystem(false)
+            .allowCalls(ZenPolicy.PEOPLE_TYPE_ANYONE)
+            .allowRepeatCallers(true)
         if (Build.VERSION.SDK_INT >= 35) {
             builder.allowPriorityChannels(true)
         }
