@@ -16,10 +16,12 @@ import com.hawwwran.shushly.service.alerting.CriticalAlertSounder
 import com.hawwwran.shushly.service.quietmode.LockStateProvider
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CancellationException
 
 /**
  * The decision pipeline (spec §7.2): eligibility → protected-source → text → dedupe →
- * classify → threshold → sound. Fails safe to silent (§3.4).
+ * classify → threshold → sound. When the AI can't classify an eligible notification it fails safe
+ * to *sound* (§3.4) — better an unwanted alert than a missed-important one.
  *
  * An important notification (ALERT at/above threshold) plays a sound immediately (sound-only; no
  * notification is posted). The only audible rate limit is a global anti-storm backstop (see
@@ -103,9 +105,19 @@ class NotificationPipeline @Inject constructor(
 
         val result = try {
             classifier.classify(e.toRequest())
+        } catch (ce: CancellationException) {
+            throw ce
         } catch (t: Throwable) {
-            Log.w(TAG, "classify failed", t)
-            record(e, Decision.ERROR, DecisionReasonCode.ERROR_AI_UNAVAILABLE, null, aiCalled = true, wasAlerted = false)
+            // Fail-safe to SOUND: an eligible notification we couldn't classify is treated as "AI said
+            // alert" — better an unwanted sound than silently swallowing something important while the
+            // AI is unreachable. Still gated by the global anti-storm backstop.
+            Log.w(TAG, "classify failed; sounding by default", t)
+            if (!dedupe.tryConsumeGlobalAlertSlot()) {
+                record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_RATE_LIMIT, "Too many alerts just now — held back.", aiCalled = true, wasAlerted = false)
+                return
+            }
+            sounder.playAlert(s.vibrateForCriticalAlerts, s.alertSoundUri)
+            record(e, Decision.ERROR, DecisionReasonCode.ERROR_AI_UNAVAILABLE, "AI unavailable — sounded by default.", aiCalled = true, wasAlerted = true)
             return
         }
 

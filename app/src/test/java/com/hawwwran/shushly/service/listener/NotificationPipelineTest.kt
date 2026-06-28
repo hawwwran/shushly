@@ -72,15 +72,30 @@ class NotificationPipelineTest {
         assertTrue(h.history.last!!.aiCalled)
     }
 
-    // --- Fail-to-silent (§3.4) ---
+    // --- Fail-safe to sound (§3.4): an eligible notification the AI can't classify sounds by default ---
 
     @Test
-    fun classifierThrows_recordsError_notSounded() = runTest {
-        val h = Harness(settings(), ProgrammableClassifier(error = RuntimeException("relay down")))
+    fun classifierThrows_soundsByDefault_recordsError() = runTest {
+        val h = Harness(settings(), ProgrammableClassifier(error = RuntimeException("AI down")))
         h.pipeline.processExtracted(extracted())
 
         assertEquals(Decision.ERROR.name, h.history.last?.decision)
         assertEquals(DecisionReasonCode.ERROR_AI_UNAVAILABLE.name, h.history.last?.reasonCode)
+        assertEquals(1, h.sounder.callCount)
+        assertTrue(h.history.last!!.wasAlerted)
+        assertTrue(h.history.last!!.aiCalled)
+    }
+
+    @Test
+    fun classifierThrows_backstopTripped_recordsRateLimit_notSounded() = runTest {
+        val h = Harness(settings(), ProgrammableClassifier(error = RuntimeException("AI down")))
+        // Consume every global alert slot first, so the fail-safe sound is held back by the backstop.
+        repeat(DedupeRateLimiter.MAX_ALERTS_PER_WINDOW) { assertTrue(h.dedupe.tryConsumeGlobalAlertSlot()) }
+
+        h.pipeline.processExtracted(extracted())
+
+        assertEquals(Decision.SKIPPED.name, h.history.last?.decision)
+        assertEquals(DecisionReasonCode.SKIPPED_RATE_LIMIT.name, h.history.last?.reasonCode)
         assertEquals(0, h.sounder.callCount)
         assertTrue(h.history.last!!.aiCalled)
     }

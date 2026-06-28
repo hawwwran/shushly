@@ -8,7 +8,7 @@ enum class AiHealthAction { NONE, MARK_UNAVAILABLE, CLEAR }
 
 /**
  * Pure transition for the AI-health flag (`aiUnavailableSince`). Visibility only — it never changes
- * the decision (AI errors still fail safe to silent). Writes happen only on a state transition:
+ * the decision (AI errors now fail safe to sound). Writes happen only on a state transition:
  *  - mark when an AI call errors (ERROR / ERROR_AI_UNAVAILABLE) and the flag is currently clear;
  *  - clear when an AI call succeeds (aiCalled and decision in ALERT/SILENT) and it is set.
  * Skips (no AI call) and unchanged states yield [AiHealthAction.NONE].

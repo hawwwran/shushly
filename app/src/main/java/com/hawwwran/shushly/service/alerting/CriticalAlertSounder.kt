@@ -19,9 +19,10 @@ import javax.inject.Singleton
  * Plays Shushly's important-notification alert. Sound-only: no notification is posted, so there is
  * no id, content intent, or dismissal to track.
  *
- * THE constraint: Smart Quiet Mode's zen policy mutes every audio lane except the alarm lane
- * (`ZenRuleQuietModeController.buildZenPolicy` is `disallowAllSounds` + `allowAlarms`). So both the
- * tone and the haptic MUST be issued on the alarm usage, or our own DND rule would silence them.
+ * THE constraint: Smart Quiet Mode's zen policy silences notification and system sounds; only the
+ * alarm lane (and the user's own media) stays open (`ZenRuleQuietModeController.buildZenPolicy`). So
+ * both the tone and the haptic MUST be issued on the alarm usage, or our own DND rule would silence
+ * them.
  */
 interface CriticalAlertSounder {
     /**

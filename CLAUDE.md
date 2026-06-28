@@ -45,13 +45,13 @@ Two cooperating halves plus an AI layer.
 
 An alert (AI or always-alert) calls `CriticalAlertSounder` and is gated by a global anti-storm backstop (`DedupeRateLimiter`). It is never a posted notification.
 
-**3. AI (direct, bring-your-own-key).** `AiClassifier` is bound to `RoutingAiClassifier`, which per call selects `DirectAiClassifier` when a key is present **and** `aiConnection.isVerified` (then `OpenAiProvider` calls OpenAI directly with the user's key from `ApiKeyStore`, Keystore-backed); otherwise the deterministic `FakeAiClassifier` in debug, or it throws in release so the pipeline fails safe to silent. There is **no relay/server** (it was removed; see `secret.plans/decisions.md` D12). `BuildConfig.USE_FAKE_CLASSIFIER` is true in debug, false in release.
+**3. AI (direct, bring-your-own-key).** `AiClassifier` is bound to `RoutingAiClassifier`, which per call selects `DirectAiClassifier` when a key is present **and** `aiConnection.isVerified` (then `OpenAiProvider` calls OpenAI directly with the user's key from `ApiKeyStore`, Keystore-backed); otherwise the deterministic `FakeAiClassifier` in debug, or it throws in release so the pipeline fails safe to sound (an eligible notification the AI can't classify sounds by default). There is **no relay/server** (it was removed; see `secret.plans/decisions.md` D12). `BuildConfig.USE_FAKE_CLASSIFIER` is true in debug, false in release.
 
 ### Invariants that explain non-obvious code
 
-- **Alarm-lane.** The zen policy is `disallowAllSounds()` + `allowAlarms` (plus `allowCalls`/`allowRepeatCallers`), so it mutes every audio lane except the alarm lane. Shushly's own tone **and** haptic must be emitted on `USAGE_ALARM` (`CriticalAlertSounder`) or its own DND rule would silence them. Don't change the usage to NOTIFICATION.
+- **Alarm-lane.** The zen policy is `disallowAllSounds()` + `allowAlarms` + `allowMedia` (plus `allowCalls`/`allowRepeatCallers`): it silences notification and system sounds, but leaves the alarm lane open and never touches the user's media (music keeps playing under Quiet Mode). Shushly's own tone **and** haptic must be emitted on `USAGE_ALARM` (`CriticalAlertSounder`) or its own DND rule would silence them. Don't change the usage to NOTIFICATION or MEDIA.
 - **Sound-only.** Shushly posts no notification for an alert; the source app's silenced notification already sits in the shade, and the sound is the cue to look.
-- **Fail-safe to silent.** Every failure path resolves to SILENT, never a spurious alert. DB and playback failures are caught so they can't break the pipeline.
+- **Fail-safe to sound.** When the AI can't classify an eligible notification (no key, network, bad response — the classifier always throws on failure), the pipeline sounds by default rather than swallowing a possibly-important alert; still gated by the anti-storm backstop. Infrastructure failures (DB write, tone playback) are caught so they can't break the pipeline.
 - **Privacy-minimal.** Decision history (Room) stores enums and metadata only, never raw notification title/body.
 
 ### DI and the system-service bridge

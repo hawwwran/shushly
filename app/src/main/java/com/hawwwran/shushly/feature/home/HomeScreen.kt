@@ -239,7 +239,7 @@ private fun ListenerRunningRow(connected: Boolean, permissionGranted: Boolean) {
     }
 }
 
-/** AI is down (errors recorded), so eligible notifications stay silent until it recovers (§13.2). */
+/** AI is down (errors recorded), so eligible notifications sound by default until it recovers (§13.2). */
 @Composable
 private fun AiUnavailableBanner(sinceMs: Long) {
     Surface(
@@ -252,7 +252,7 @@ private fun AiUnavailableBanner(sinceMs: Long) {
             Spacer(Modifier.width(12.dp))
             Column {
                 Text(
-                    text = "AI unavailable — eligible notifications are staying silent.",
+                    text = "AI unavailable — eligible notifications sound by default.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onErrorContainer,
                     fontWeight = FontWeight.SemiBold,
@@ -273,8 +273,8 @@ private fun AiUnavailableBanner(sinceMs: Long) {
 }
 
 /**
- * Informational only: AI is optional. Without a verified OpenAI key, eligible notifications just stay
- * silent — so this row never blocks setup (it's not part of [ReadinessUi.minimumMet]) and has no Fix.
+ * Informational only: AI is optional. Without a verified OpenAI key, eligible notifications sound by
+ * default — so this row never blocks setup (it's not part of [ReadinessUi.minimumMet]) and has no Fix.
  */
 @Composable
 private fun AiConnectionReadinessRow(verified: Boolean) {
@@ -291,7 +291,7 @@ private fun AiConnectionReadinessRow(verified: Boolean) {
                 text = if (verified) {
                     "Optional. Your OpenAI key is configured and verified."
                 } else {
-                    "Optional. Without it, eligible notifications just stay silent."
+                    "Optional. Without it, eligible notifications sound by default."
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

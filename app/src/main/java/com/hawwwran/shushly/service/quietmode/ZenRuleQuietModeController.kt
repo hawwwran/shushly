@@ -126,15 +126,16 @@ class ZenRuleQuietModeController @Inject constructor(
     }
 
     /**
-     * Silence everything except alarms and incoming calls; let priority channels (our
-     * critical_alerts) through. Calls from anyone — plus repeat callers — always ring, so Quiet
+     * Silence notification sounds, but never touch media: music, video, and podcasts keep playing
+     * (allowMedia), and the alarm lane stays open for Shushly's own alert. Calls from anyone — plus
+     * repeat callers — always ring, and priority channels (our critical_alerts) come through, so Quiet
      * Mode never makes you miss a phone call.
      */
     private fun buildZenPolicy(): ZenPolicy {
         val builder = ZenPolicy.Builder()
             .disallowAllSounds()
             .allowAlarms(true)
-            .allowMedia(false)
+            .allowMedia(true)
             .allowSystem(false)
             .allowCalls(ZenPolicy.PEOPLE_TYPE_ANYONE)
             .allowRepeatCallers(true)

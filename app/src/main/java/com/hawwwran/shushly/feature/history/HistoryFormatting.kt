@@ -58,7 +58,7 @@ internal fun lifecycleText(entity: DecisionHistoryEntity): String {
     val outcome = when (entity.decisionOrNull()) {
         Decision.ALERT -> if (entity.wasAlerted) "ALERT → sounded" else "ALERT"
         Decision.SILENT -> "SILENT"
-        Decision.ERROR -> "ERROR → stayed silent"
+        Decision.ERROR -> if (entity.wasAlerted) "ERROR → sounded by default" else "ERROR → stayed silent"
         Decision.SKIPPED ->
             if (reason == DecisionReasonCode.SKIPPED_RATE_LIMIT) "ALERT but rate-limited (held back)"
             else "skipped"
