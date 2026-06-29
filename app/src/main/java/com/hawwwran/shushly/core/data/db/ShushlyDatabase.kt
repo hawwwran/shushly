@@ -5,7 +5,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [DecisionHistoryEntity::class, AppLearningEntity::class], version = 3, exportSchema = false)
+@Database(entities = [DecisionHistoryEntity::class, AppLearningEntity::class], version = 4, exportSchema = false)
 abstract class ShushlyDatabase : RoomDatabase() {
     abstract fun decisionHistoryDao(): DecisionHistoryDao
     abstract fun appLearningDao(): AppLearningDao
@@ -42,5 +42,15 @@ val MIGRATION_2_3: Migration = object : Migration(2, 3) {
         db.execSQL(
             "CREATE UNIQUE INDEX IF NOT EXISTS `index_app_learnings_sourceHistoryId` ON `app_learnings` (`sourceHistoryId`)",
         )
+    }
+}
+
+/**
+ * v3 -> v4: additive only. Adds the nullable content-dedupe hash column (surfaced in decision detail);
+ * existing rows default to NULL. No data loss — do not replace with destructive fallback.
+ */
+val MIGRATION_3_4: Migration = object : Migration(3, 4) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE decision_history ADD COLUMN contentHash TEXT")
     }
 }

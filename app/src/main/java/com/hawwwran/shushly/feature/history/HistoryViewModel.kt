@@ -3,11 +3,13 @@ package com.hawwwran.shushly.feature.history
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hawwwran.shushly.BuildConfig
 import com.hawwwran.shushly.core.data.AppLearningRepository
 import com.hawwwran.shushly.core.data.DecisionHistoryRepository
+import com.hawwwran.shushly.core.data.InstalledAppRepository
 import com.hawwwran.shushly.core.data.SettingsRepository
 import com.hawwwran.shushly.core.data.db.AppLearningEntity
 import com.hawwwran.shushly.core.data.db.DecisionHistoryEntity
@@ -20,6 +22,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -32,10 +35,33 @@ class HistoryViewModel @Inject constructor(
     private val settings: SettingsRepository,
     private val contentCache: RecentNotificationContentCache,
     private val digester: LearningDigester,
+    private val installedApps: InstalledAppRepository,
 ) : ViewModel() {
 
-    val entries: StateFlow<List<DecisionHistoryEntity>> = repository.observeRecent()
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    /** A history entry decorated for the list: its app icon and whether the app is effectively silenced. */
+    data class HistoryRow(
+        val entry: DecisionHistoryEntity,
+        val icon: ImageBitmap?,
+        val alwaysSilenced: Boolean,
+    )
+
+    // null = first load not done yet, so the screen can tell "loading" apart from "genuinely empty"
+    // (icon loading delays the first emission enough to otherwise flash the empty-state message).
+    val entries: StateFlow<List<HistoryRow>?> =
+        combine(repository.observeRecent(), settings.settings) { rows, s ->
+            // One icon load per distinct package (the repository caches both hits and misses).
+            val icons = rows.asSequence()
+                .map { it.packageName }
+                .distinct()
+                .associateWith { installedApps.loadIcon(it) }
+            rows.map { entry ->
+                HistoryRow(
+                    entry = entry,
+                    icon = icons[entry.packageName],
+                    alwaysSilenced = isAlwaysSilenced(entry.packageName, s),
+                )
+            }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     /** Everything the detail screen needs to render the steering section for the open row. */
     data class DetailUi(

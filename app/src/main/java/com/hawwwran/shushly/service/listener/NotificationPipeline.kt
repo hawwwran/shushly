@@ -19,9 +19,10 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 
 /**
- * The decision pipeline (spec §7.2): eligibility → protected-source → text → dedupe →
- * classify → threshold → sound. When the AI can't classify an eligible notification it fails safe
- * to *sound* (§3.4) — better an unwanted alert than a missed-important one.
+ * The decision pipeline (spec §7.2): quiet-mode/in-use → protected-source → always-alert →
+ * group-summary → eligibility → text → content-dedupe → key-dedupe → classify → threshold → sound.
+ * When the AI can't classify an eligible notification it fails safe to *sound* (§3.4) — better an
+ * unwanted alert than a missed-important one.
  *
  * An important notification (ALERT at/above threshold) plays a sound immediately (sound-only; no
  * notification is posted). The only audible rate limit is a global anti-storm backstop (see
@@ -99,6 +100,17 @@ class NotificationPipeline @Inject constructor(
             record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_NO_USABLE_TEXT, null, aiCalled = false, wasAlerted = false)
             return
         }
+        // Content-level dedupe (spec §7.5): apps frequently re-post or rapidly update the same
+        // notification (same app + identical text). Drop an exact repeat seen within the dedupe window
+        // outright — no history row, no AI call, no re-alert — so duplicates don't flood the log. Placed
+        // after the quiet-mode/in-use/protected/always-alert/eligibility gates: it must never swallow a
+        // guaranteed-sound (protected or always-alert) notification, nor let a post seen while Quiet Mode
+        // was off suppress the first real one once it's on. The 30s per-key cooldown below still records
+        // same-key updates whose text *changed* (a fresh content hash) as SKIPPED_DUPLICATE.
+        if (!dedupe.isFreshContent(e.contentHash)) {
+            Log.d(TAG, "${e.packageName}: dropping duplicate (same content seen recently)")
+            return
+        }
         if (!dedupe.canCallAi(e.notificationKey)) {
             record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_DUPLICATE, null, aiCalled = false, wasAlerted = false)
             return
@@ -170,6 +182,7 @@ class NotificationPipeline @Inject constructor(
             userVisibleReason = userVisibleReason,
             aiCalled = aiCalled,
             wasAlerted = wasAlerted,
+            contentHash = e.contentHash,
         )
         // Resilient: a DB failure must never break the decision pipeline.
         runCatching { history.record(entity) }

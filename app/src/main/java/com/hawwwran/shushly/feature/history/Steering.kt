@@ -101,6 +101,14 @@ private fun ConfigAction.isValid(inAlways: Boolean, eligible: Boolean): Boolean 
     ConfigAction.SILENCE_APP -> eligible && !inAlways
 }
 
+/**
+ * True when Shushly will never sound for [pkg] under the current settings: it is neither on the
+ * always-alert list nor eligible for AI classification. The history list dims such rows so the user
+ * can tell at a glance which apps still reach them and which are effectively silenced.
+ */
+fun isAlwaysSilenced(pkg: String, settings: AppSettings): Boolean =
+    pkg !in settings.alwaysAlertPackages && !eligibleNow(pkg, settings)
+
 /** Mirrors [com.hawwwran.shushly.service.listener.NotificationEligibilityEvaluator]. */
 private fun eligibleNow(pkg: String, s: AppSettings): Boolean {
     val inList = pkg in s.selectedPackages

@@ -104,6 +104,7 @@ fun DecisionDetailScreen(
                 DetailField("AI called", if (e.aiCalled) "Yes" else "No")
                 DetailField("Sounded", if (e.wasAlerted) "Yes" else "No")
                 e.notificationKeyHash?.let { DetailField("Source key (hash)", it) }
+                e.contentHash?.let { DetailField("Content (hash)", it, monospace = true) }
 
                 HorizontalDivider()
                 SteeringSection(
@@ -265,6 +266,7 @@ private fun copyTechnicalDetails(context: Context, e: DecisionHistoryEntity) {
         appendLine("AI called: ${if (e.aiCalled) "yes" else "no"}")
         appendLine("Sounded: ${if (e.wasAlerted) "yes" else "no"}")
         appendLine("Source key (hash): ${e.notificationKeyHash ?: "—"}")
+        appendLine("Content (hash): ${e.contentHash ?: "—"}")
         append("Feedback: ${e.userFeedback ?: "none"}")
     }
     context.getSystemService(ClipboardManager::class.java)

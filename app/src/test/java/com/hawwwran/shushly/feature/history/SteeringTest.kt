@@ -197,6 +197,40 @@ class SteeringTest {
         assertTrue(s.explanation != null)
     }
 
+    // --- Always-silenced (history-row dimming) ---
+
+    @Test
+    fun alwaysSilenced_blacklistDefault_eligibleByDefault() {
+        // Default blacklist with empty selection: every app is eligible, so nothing is dimmed.
+        assertFalse(isAlwaysSilenced(pkg, settings()))
+    }
+
+    @Test
+    fun alwaysSilenced_blacklist_excludedApp_isSilenced() {
+        assertTrue(isAlwaysSilenced(pkg, settings(selected = setOf(pkg))))
+    }
+
+    @Test
+    fun alwaysSilenced_alwaysAlertBeatsExclusion() {
+        // On the always-alert list it always sounds, even when also in the exclusion set.
+        assertFalse(isAlwaysSilenced(pkg, settings(selected = setOf(pkg), always = setOf(pkg))))
+    }
+
+    @Test
+    fun alwaysSilenced_whitelist_unselectedApp_isSilenced() {
+        assertTrue(isAlwaysSilenced(pkg, settings(mode = EligibilityMode.SELECTED_APPS, selected = emptySet())))
+    }
+
+    @Test
+    fun alwaysSilenced_whitelist_selectedApp_isNotSilenced() {
+        assertFalse(isAlwaysSilenced(pkg, settings(mode = EligibilityMode.SELECTED_APPS, selected = setOf(pkg))))
+    }
+
+    @Test
+    fun alwaysSilenced_whitelist_alwaysAlertUnselected_isNotSilenced() {
+        assertFalse(isAlwaysSilenced(pkg, settings(mode = EligibilityMode.SELECTED_APPS, always = setOf(pkg))))
+    }
+
     // --- Labels ---
 
     @Test

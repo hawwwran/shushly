@@ -35,6 +35,35 @@ class DedupeRateLimiterTest {
         assertTrue(limiter.canCallAi("other", nowMs = 10_000))
     }
 
+    // isFreshContent — content-hash dedupe over a 60 min window. Explicit nowMs; never the real clock.
+
+    @Test
+    fun isFreshContent_firstSighting_true() {
+        val limiter = DedupeRateLimiter()
+        assertTrue(limiter.isFreshContent("h", nowMs = 0))
+    }
+
+    @Test
+    fun isFreshContent_sameHashWithinWindow_false() {
+        val limiter = DedupeRateLimiter()
+        limiter.isFreshContent("h", nowMs = 0)
+        assertFalse(limiter.isFreshContent("h", nowMs = 10_000))
+    }
+
+    @Test
+    fun isFreshContent_sameHashAfterWindow_true() {
+        val limiter = DedupeRateLimiter()
+        limiter.isFreshContent("h", nowMs = 0)
+        assertTrue(limiter.isFreshContent("h", nowMs = DedupeRateLimiter.CONTENT_DEDUPE_WINDOW_MS))
+    }
+
+    @Test
+    fun isFreshContent_differentHash_isIndependent() {
+        val limiter = DedupeRateLimiter()
+        limiter.isFreshContent("h", nowMs = 0)
+        assertTrue(limiter.isFreshContent("other", nowMs = 10_000))
+    }
+
     // tryConsumeGlobalAlertSlot — global anti-storm backstop, cap per rolling window.
 
     @Test

@@ -23,4 +23,7 @@ data class DecisionHistoryEntity(
     val wasAlerted: Boolean,
     // Local-only user feedback (§14.3): null / "SHOULD_ALERT" / "SHOULD_SILENT". Added in schema v2.
     val userFeedback: String? = null,
+    // Content-dedupe hash (salted SHA-256 of app + title + body); surfaced in the detail screen. Added
+    // in schema v4; null for rows recorded before v4. Privacy-safe: a salted one-way hash, never the raw text.
+    val contentHash: String? = null,
 )

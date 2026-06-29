@@ -125,7 +125,8 @@ class NotificationPipelineTest {
         val cap = DedupeRateLimiter.MAX_ALERTS_PER_WINDOW
         val h = Harness(settings(), ProgrammableClassifier(alert(0.95)))
 
-        repeat(cap + 1) { i -> h.pipeline.processExtracted(extracted(key = "key-$i")) }
+        // Distinct content per notification so the content-dedupe lets them all through to the backstop.
+        repeat(cap + 1) { i -> h.pipeline.processExtracted(extracted(key = "key-$i", body = "incident $i")) }
 
         assertEquals(cap, h.sounder.callCount)
         val records = h.history.recorded
@@ -233,8 +234,10 @@ class NotificationPipelineTest {
     fun sameNotificationKeyTwice_secondIsSkippedDuplicate() = runTest {
         val h = Harness(settings(), ProgrammableClassifier(alert(0.95)))
 
-        h.pipeline.processExtracted(extracted(key = "dup"))
-        h.pipeline.processExtracted(extracted(key = "dup"))
+        // Same key but changed text (e.g. a message-count update): content dedupe lets both through,
+        // so the 30s per-key AI cooldown is what records the second as SKIPPED_DUPLICATE.
+        h.pipeline.processExtracted(extracted(key = "dup", body = "first body"))
+        h.pipeline.processExtracted(extracted(key = "dup", body = "second body"))
 
         val records = h.history.recorded
         assertEquals(2, records.size)
@@ -244,6 +247,43 @@ class NotificationPipelineTest {
         assertEquals(DecisionReasonCode.SKIPPED_DUPLICATE.name, records[1].reasonCode)
         assertFalse(records[1].aiCalled)
         assertEquals(1, h.sounder.callCount) // only the first sounded
+    }
+
+    @Test
+    fun identicalContentTwice_secondDroppedOutright_noHistoryNoAi() = runTest {
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(settings(), classifier)
+
+        // Same app + identical title/body, re-posted under a different system key (as updates often are).
+        // Content dedupe drops the repeat before it can be recorded, classified, or sounded.
+        h.pipeline.processExtracted(extracted(key = "k1"))
+        h.pipeline.processExtracted(extracted(key = "k2"))
+
+        assertEquals(1, h.history.recorded.size) // only the first instance is reported
+        assertEquals(1, classifier.callCount) // the duplicate never reaches the AI
+        assertEquals(1, h.sounder.callCount) // and never re-sounds
+    }
+
+    @Test
+    fun recordedRow_carriesContentHash() = runTest {
+        val h = Harness(settings(), ProgrammableClassifier(alert(0.95)))
+        val e = extracted()
+        h.pipeline.processExtracted(e)
+        // The persisted hash is the same value the pipeline deduped on (shown in the detail screen).
+        assertEquals(e.contentHash, h.history.last?.contentHash)
+    }
+
+    @Test
+    fun differentContentSameApp_bothProcessed() = runTest {
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(settings(), classifier)
+
+        h.pipeline.processExtracted(extracted(key = "k1", body = "first"))
+        h.pipeline.processExtracted(extracted(key = "k2", body = "second"))
+
+        assertEquals(2, h.history.recorded.size)
+        assertEquals(2, classifier.callCount)
+        assertEquals(2, h.sounder.callCount)
     }
 
     // --- Active when locked (in-use gate) ---
@@ -299,14 +339,14 @@ class NotificationPipelineTest {
         val lock = FakeLockStateProvider(inUse = true)
         val h = Harness(settings(activeWhenLocked = true), classifier, lockState = lock)
 
-        // In use → stood aside.
-        h.pipeline.processExtracted(extracted(key = "k1"))
+        // In use → stood aside. (Distinct bodies so content dedupe doesn't collapse the two.)
+        h.pipeline.processExtracted(extracted(key = "k1", body = "alpha"))
         assertEquals(DecisionReasonCode.SKIPPED_PHONE_IN_USE.name, h.history.last?.reasonCode)
         assertEquals(0, classifier.callCount)
 
         // Flip live → next notification reaches the AI (no cached isInUse()).
         lock.inUse = false
-        h.pipeline.processExtracted(extracted(key = "k2"))
+        h.pipeline.processExtracted(extracted(key = "k2", body = "beta"))
         assertEquals(Decision.ALERT.name, h.history.last?.decision)
         assertEquals(1, classifier.callCount)
     }

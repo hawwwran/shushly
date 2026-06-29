@@ -2,17 +2,22 @@
 
 package com.hawwwran.shushly.feature.history
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
@@ -34,10 +39,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.hawwwran.shushly.core.data.db.DecisionHistoryEntity
 import com.hawwwran.shushly.core.model.Decision
 import com.hawwwran.shushly.feature.common.OkColor
 
@@ -62,7 +69,7 @@ fun HistoryScreen(
                     }
                 },
                 actions = {
-                    if (entries.isNotEmpty()) {
+                    if (!entries.isNullOrEmpty()) {
                         IconButton(onClick = { showClearDialog = true }) {
                             Icon(Icons.Filled.Delete, contentDescription = "Clear history")
                         }
@@ -77,7 +84,10 @@ fun HistoryScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 20.dp),
         ) {
-            if (entries.isEmpty()) {
+            val rows = entries
+            if (rows == null) {
+                // First load not finished — show nothing rather than flashing the empty-state message.
+            } else if (rows.isEmpty()) {
                 Text(
                     text = "No decisions recorded yet.",
                     style = MaterialTheme.typography.bodyMedium,
@@ -89,8 +99,8 @@ fun HistoryScreen(
                         .fillMaxSize(),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    items(entries, key = { it.id }) { entry ->
-                        LogRow(entry, onClick = { onOpenDetail(entry.id) })
+                    items(rows, key = { it.entry.id }) { row ->
+                        LogRow(row, onClick = { onOpenDetail(row.entry.id) })
                         HorizontalDivider()
                     }
                 }
@@ -117,45 +127,70 @@ fun HistoryScreen(
 }
 
 @Composable
-private fun LogRow(entry: DecisionHistoryEntity, onClick: () -> Unit) {
+private fun LogRow(row: HistoryViewModel.HistoryRow, onClick: () -> Unit) {
+    val entry = row.entry
     val decisionColor = when (entry.decisionOrNull()) {
         Decision.ALERT -> OkColor
         Decision.ERROR -> MaterialTheme.colorScheme.error
         else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
+            // Apps Shushly will never sound for are dimmed, so it's clear at a glance which apps
+            // still reach the user and which are effectively silenced.
+            .alpha(if (row.alwaysSilenced) 0.6f else 1f)
             .padding(vertical = 6.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        AppIcon(row.icon)
+        Spacer(Modifier.width(12.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = decisionLabel(entry),
+                    fontWeight = FontWeight.Bold,
+                    color = decisionColor,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = formatTime(entry.createdAtMs),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Text(
-                text = decisionLabel(entry),
-                fontWeight = FontWeight.Bold,
-                color = decisionColor,
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = formatTime(entry.createdAtMs),
+                text = "${entry.appLabel} · ${entry.packageName}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            Text(
+                text = lifecycleText(entry),
+                fontFamily = FontFamily.Monospace,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            entry.userVisibleReason?.let {
+                Text(text = it, style = MaterialTheme.typography.bodySmall)
+            }
         }
-        Text(
-            text = "${entry.appLabel} · ${entry.packageName}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+    }
+}
+
+@Composable
+private fun AppIcon(icon: ImageBitmap?) {
+    if (icon != null) {
+        Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(36.dp))
+    } else {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
         )
-        Text(
-            text = lifecycleText(entry),
-            fontFamily = FontFamily.Monospace,
-            style = MaterialTheme.typography.bodySmall,
-        )
-        entry.userVisibleReason?.let {
-            Text(text = it, style = MaterialTheme.typography.bodySmall)
-        }
     }
 }

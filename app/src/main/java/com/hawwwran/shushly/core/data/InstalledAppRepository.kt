@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.core.graphics.drawable.toBitmap
 import com.hawwwran.shushly.core.model.InstalledApp
@@ -12,6 +13,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.text.Collator
+import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -23,12 +25,26 @@ import javax.inject.Singleton
 interface InstalledAppRepository {
     /** Launchable apps (excluding Shushly), protected-marked, locale-sorted by label. */
     suspend fun getSelectableApps(): List<InstalledApp>
+
+    /**
+     * The launcher icon for one package, or null if the package is gone or has no icon. A hit is cached
+     * for the process lifetime; a miss is cached only briefly, so an app installed after a failed lookup
+     * still gets its icon without a process restart while repeated PackageManager lookups are still spared.
+     */
+    suspend fun loadIcon(packageName: String): ImageBitmap?
 }
 
 @Singleton
 class InstalledAppRepositoryImpl @Inject constructor(
     @ApplicationContext private val context: Context,
 ) : InstalledAppRepository {
+
+    // A hit is cached for the process lifetime; a miss is cached with its fetch time so it is
+    // re-attempted after MISS_RETRY_MS (the package may be installed later) instead of either
+    // re-hitting PackageManager on every list emission or being negatively cached forever.
+    private val iconCache = ConcurrentHashMap<String, IconHolder>()
+
+    private class IconHolder(val bitmap: ImageBitmap?, val fetchedAtMs: Long)
 
     override suspend fun getSelectableApps(): List<InstalledApp> = withContext(Dispatchers.IO) {
         val pm = context.packageManager
@@ -58,5 +74,25 @@ class InstalledAppRepositoryImpl @Inject constructor(
         }
         val collator = Collator.getInstance()
         byPackage.values.sortedWith(compareBy(collator) { it.label })
+    }
+
+    override suspend fun loadIcon(packageName: String): ImageBitmap? {
+        iconCache[packageName]?.let { cached ->
+            // A hit is final; a miss is honoured only until its retry window lapses.
+            if (cached.bitmap != null || System.currentTimeMillis() - cached.fetchedAtMs < MISS_RETRY_MS) {
+                return cached.bitmap
+            }
+        }
+        return withContext(Dispatchers.IO) {
+            val bitmap = runCatching {
+                context.packageManager.getApplicationIcon(packageName).toBitmap().asImageBitmap()
+            }.getOrNull()
+            iconCache[packageName] = IconHolder(bitmap, System.currentTimeMillis())
+            bitmap
+        }
+    }
+
+    companion object {
+        private const val MISS_RETRY_MS = 60_000L
     }
 }

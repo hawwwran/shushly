@@ -40,7 +40,7 @@ Two cooperating halves plus an AI layer.
 3. quiet-mode-off, then active-when-locked-and-in-use
 4. protected source (`ProtectedSourcePolicy`: telephony/clock/auth/wallet packages, CALL/ALARM categories, OTP shape)
 5. always-alert apps (sound immediately, AI bypassed)
-6. group-summary, eligibility, usable-text, duplicate/cooldown guards
+6. group-summary, eligibility, usable-text, then the dedupe guards: content-dedupe (drop an exact repeat of app + title + body seen within 60 min outright — no history, no AI; catches re-posts even under a new notification key, `DedupeRateLimiter.isFreshContent`) and the per-key 30s AI cooldown (`SKIPPED_DUPLICATE`, for same-key updates whose text changed). Content-dedupe sits *after* the bypass/eligibility gates so it can never swallow a guaranteed-sound notification or poison the window from a post seen while Quiet Mode was off.
 7. classify via AI, then alert iff `decision == ALERT && confidence >= 0.80` (`NotificationPipeline.ALERT_THRESHOLD`)
 
 An alert (AI or always-alert) calls `CriticalAlertSounder` and is gated by a global anti-storm backstop (`DedupeRateLimiter`). It is never a posted notification.
