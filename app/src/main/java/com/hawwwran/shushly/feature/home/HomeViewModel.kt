@@ -87,6 +87,13 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun setDeadSilent(on: Boolean) {
+        viewModelScope.launch {
+            smartQuietMode.setDeadSilent(on)
+            refresh()
+        }
+    }
+
     fun setActiveWhenLocked(on: Boolean) {
         viewModelScope.launch {
             smartQuietMode.setActiveWhenLocked(on)

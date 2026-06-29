@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -105,7 +106,20 @@ fun HomeScreen(
         modifier = modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
-                title = { Text("Shushly") },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Shushly")
+                        if (settings.deadSilent) {
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                text = "SOUND OFF",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.labelLarge,
+                            )
+                        }
+                    }
+                },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
                         Icon(Icons.Filled.Menu, contentDescription = "Menu")
@@ -160,6 +174,12 @@ fun HomeScreen(
                 onActiveWhenLockedChange = viewModel::setActiveWhenLocked,
                 onVibrateChange = viewModel::setVibrate,
                 onAlarmVolumeChange = viewModel::setAlertVolume,
+            )
+
+            DeadSilentCard(
+                deadSilentOn = settings.deadSilent,
+                enabled = readiness.policyAccessGranted,
+                onChange = viewModel::setDeadSilent,
             )
 
             AlertSoundCard(
@@ -315,6 +335,41 @@ private fun ReadinessRow(label: String, satisfied: Boolean, onFix: () -> Unit) {
         Text(label, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         if (!satisfied) {
             OutlinedButton(onClick = onFix) { Text("Fix") }
+        }
+    }
+}
+
+@Composable
+private fun DeadSilentCard(deadSilentOn: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
+    // When on, the whole card flips to a red/white alarm state so it's unmistakable that everything is
+    // muted (mirrored by the "SOUND OFF" badge in the top bar).
+    val colors = if (deadSilentOn) {
+        CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.error,
+            contentColor = MaterialTheme.colorScheme.onError,
+        )
+    } else {
+        CardDefaults.cardColors()
+    }
+    Card(modifier = Modifier.fillMaxWidth(), colors = colors) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Dead silent", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = when {
+                            deadSilentOn -> "Total silence is ON — notifications, calls and alarms are all muted; only music keeps playing. Switch off to restore alerts."
+                            enabled -> "Total silence for the theatre. While on, nothing sounds — notifications, calls, even alarms — only music you're already playing keeps going. No alerts until you switch it off."
+                            else -> "Needs Quiet-mode (DND) access — see Setup above."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        // Inherit the card's white content color when on; muted grey otherwise.
+                        color = if (deadSilentOn) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                // Always allow switching OFF even if DND access was later revoked (turning off needs none).
+                Switch(checked = deadSilentOn, onCheckedChange = onChange, enabled = enabled || deadSilentOn)
+            }
         }
     }
 }

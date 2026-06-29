@@ -120,6 +120,7 @@ private fun eligibleNow(pkg: String, s: AppSettings): Boolean {
 
 private fun explainSkip(reason: DecisionReasonCode?): String? = when (reason) {
     DecisionReasonCode.SKIPPED_QUIET_MODE_OFF -> "Smart Quiet Mode was off, so Shushly stood aside."
+    DecisionReasonCode.SKIPPED_DEAD_SILENT -> "Dead silent was on — everything was muted."
     DecisionReasonCode.SKIPPED_PHONE_IN_USE -> "You were using your phone, so Shushly stood aside."
     DecisionReasonCode.SKIPPED_NO_USABLE_TEXT -> "There was no text for the AI to judge."
     DecisionReasonCode.SILENT_GROUP_SUMMARY -> "This was a group summary with no content of its own."

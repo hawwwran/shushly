@@ -36,12 +36,14 @@ Two cooperating halves plus an AI layer.
 **2. Observe and re-alert.** `ShushlyNotificationListenerService` hands each posted notification to `NotificationPipeline.processExtracted`, an ordered chain of guards (most record a decision to history). The order is load-bearing:
 
 1. static/persistent drop — ongoing or `!StatusBarNotification.isClearable()`; checked first and the only branch that records nothing
-2. learn the app (`SeenAppsRepository`, feeds the picker's "most used")
-3. quiet-mode-off, then active-when-locked-and-in-use
-4. protected source (`ProtectedSourcePolicy`: telephony/clock/auth/wallet packages, CALL/ALARM categories, OTP shape)
-5. always-alert apps (sound immediately, AI bypassed)
-6. group-summary, eligibility, usable-text, then the dedupe guards: content-dedupe (drop an exact repeat of app + title + body seen within 60 min outright — no history, no AI; catches re-posts even under a new notification key, `DedupeRateLimiter.isFreshContent`) and the per-key 30s AI cooldown (`SKIPPED_DUPLICATE`, for same-key updates whose text changed). Content-dedupe sits *after* the bypass/eligibility gates so it can never swallow a guaranteed-sound notification or poison the window from a post seen while Quiet Mode was off.
-7. classify via AI, then alert iff `decision == ALERT && confidence >= 0.80` (`NotificationPipeline.ALERT_THRESHOLD`)
+2. burst dedupe — collapse an exact-content repeat posted within ~1s (same app + title + body) to just the first; records nothing (`DedupeRateLimiter.isFirstInBurst`). Tiny window, so it's safe ahead of the bypass gates — a same-instant identical repeat is one event double-posted (e.g. WhatsApp)
+3. learn the app (`SeenAppsRepository`, feeds the picker's "most used")
+4. dead silent — total-silence override (`AppSettings.deadSilent`): if on, record `SKIPPED_DEAD_SILENT` and stop (no AI, no sound; every re-alert suppressed). Checked ahead of quiet-mode-off because it forces the zen rule active even when the master is off
+5. quiet-mode-off, then active-when-locked-and-in-use
+6. protected source (`ProtectedSourcePolicy`: telephony/clock/auth/wallet packages, CALL/ALARM categories, OTP shape)
+7. always-alert apps (sound immediately, AI bypassed)
+8. group-summary, eligibility, usable-text, then the dedupe guards: content-dedupe (drop an exact repeat of app + title + body seen within 60 min outright — no history, no AI; catches re-posts even under a new notification key, `DedupeRateLimiter.isFreshContent`) and the per-key 30s AI cooldown (`SKIPPED_DUPLICATE`, for same-key updates whose text changed). Content-dedupe sits *after* the bypass/eligibility gates so it can never swallow a guaranteed-sound notification or poison the window from a post seen while Quiet Mode was off.
+9. classify via AI, then alert iff `decision == ALERT && confidence >= 0.80` (`NotificationPipeline.ALERT_THRESHOLD`)
 
 An alert (AI or always-alert) calls `CriticalAlertSounder` and is gated by a global anti-storm backstop (`DedupeRateLimiter`). It is never a posted notification.
 
@@ -50,9 +52,10 @@ An alert (AI or always-alert) calls `CriticalAlertSounder` and is gated by a glo
 ### Invariants that explain non-obvious code
 
 - **Alarm-lane.** The zen policy is `disallowAllSounds()` + `allowAlarms` + `allowMedia` (plus `allowCalls`/`allowRepeatCallers`): it silences notification and system sounds, but leaves the alarm lane open and never touches the user's media (music keeps playing under Quiet Mode). Shushly's own tone **and** haptic must be emitted on `USAGE_ALARM` (`CriticalAlertSounder`) or its own DND rule would silence them. Don't change the usage to NOTIFICATION or MEDIA.
+- **Dead silent.** `AppSettings.deadSilent` is a total-silence override (theatre): `ZenRuleQuietModeController` applies a stricter policy — `disallowAllSounds()` + `allowMedia` only, so notifications, **calls and alarms** are all muted (only already-playing media survives), and `desiredZenActive` forces the rule active even with the master off. The closed alarm lane is intentional here because the pipeline suppresses every Shushly re-alert in this mode (it never tries to sound), so it doesn't conflict with the alarm-lane rule above.
 - **Sound-only.** Shushly posts no notification for an alert; the source app's silenced notification already sits in the shade, and the sound is the cue to look.
 - **Fail-safe to sound.** When the AI can't classify an eligible notification (no key, network, bad response — the classifier always throws on failure), the pipeline sounds by default rather than swallowing a possibly-important alert; still gated by the anti-storm backstop. Infrastructure failures (DB write, tone playback) are caught so they can't break the pipeline.
-- **Privacy-minimal.** Decision history (Room) stores enums and metadata only, never raw notification title/body.
+- **Privacy-minimal.** Decision history (Room) stores enums and metadata only, never raw notification title/body. (Temporary exception: in **debug builds only**, `DecisionHistoryEntity.debugTitle`/`debugBody` capture the raw text to diagnose dedupe hash mismatches; always null in release. Remove these columns once that's sorted.)
 
 ### DI and the system-service bridge
 

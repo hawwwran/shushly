@@ -5,7 +5,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [DecisionHistoryEntity::class, AppLearningEntity::class], version = 4, exportSchema = false)
+@Database(entities = [DecisionHistoryEntity::class, AppLearningEntity::class], version = 5, exportSchema = false)
 abstract class ShushlyDatabase : RoomDatabase() {
     abstract fun decisionHistoryDao(): DecisionHistoryDao
     abstract fun appLearningDao(): AppLearningDao
@@ -52,5 +52,17 @@ val MIGRATION_2_3: Migration = object : Migration(2, 3) {
 val MIGRATION_3_4: Migration = object : Migration(3, 4) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL("ALTER TABLE decision_history ADD COLUMN contentHash TEXT")
+    }
+}
+
+/**
+ * v4 -> v5: additive only. Adds the nullable DEBUG-ONLY raw title/body columns (written only in debug
+ * builds, to diagnose dedupe hash mismatches); existing rows default to NULL. No data loss — do not
+ * replace with destructive fallback. Drop these columns when the debug content view is removed.
+ */
+val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE decision_history ADD COLUMN debugTitle TEXT")
+        db.execSQL("ALTER TABLE decision_history ADD COLUMN debugBody TEXT")
     }
 }

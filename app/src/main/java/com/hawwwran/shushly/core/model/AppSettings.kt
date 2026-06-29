@@ -6,6 +6,12 @@ package com.hawwwran.shushly.core.model
  */
 data class AppSettings(
     val smartQuietModeEnabled: Boolean = false,
+    /**
+     * Dead silent (e.g. theatre): a total-silence override independent of [smartQuietModeEnabled]. While
+     * on, the app's zen rule mutes everything (notifications, calls, alarms, system; only media keeps
+     * playing) and the pipeline emits no re-alert at all.
+     */
+    val deadSilent: Boolean = false,
     /** Sub-option of Smart Quiet Mode: only act while the phone is locked/away. */
     val activeWhenLocked: Boolean = true,
     val vibrateForCriticalAlerts: Boolean = true,

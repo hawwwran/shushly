@@ -44,6 +44,7 @@ internal fun lifecycleText(entity: DecisionHistoryEntity): String {
     if (!entity.aiCalled) {
         val why = when (reason) {
             DecisionReasonCode.SKIPPED_QUIET_MODE_OFF -> "Smart Quiet Mode off"
+            DecisionReasonCode.SKIPPED_DEAD_SILENT -> "dead silent — everything muted"
             DecisionReasonCode.SKIPPED_PHONE_IN_USE -> "phone in use — stood aside"
             DecisionReasonCode.SKIPPED_PROTECTED_SOURCE -> "protected source"
             DecisionReasonCode.SKIPPED_NOT_ELIGIBLE -> "not eligible"

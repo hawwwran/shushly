@@ -62,7 +62,8 @@ class ZenRuleQuietModeController @Inject constructor(
             return@withContext QuietModeResult.Unavailable(DecisionReasonCode.ERROR_PERMISSION_MISSING)
         }
         try {
-            val ruleId = ensureRule(settings.snapshot().zenRuleId)
+            val s = settings.snapshot()
+            val ruleId = ensureRule(s.zenRuleId, s.deadSilent)
             cachedRuleId = ruleId
             settings.setZenRuleId(ruleId)
             nm.setAutomaticZenRuleState(
@@ -104,14 +105,14 @@ class ZenRuleQuietModeController @Inject constructor(
      * has its policy refreshed so changes shipped in an app update (e.g. now allowing calls) reach
      * installs that already created the rule.
      */
-    private fun ensureRule(prevId: String?): String {
+    private fun ensureRule(prevId: String?, deadSilent: Boolean): String {
         @Suppress("DEPRECATION")
         val rule = AutomaticZenRule(
             "Shushly Smart Quiet Mode",
             ComponentName(context, ShushlyConditionProviderService::class.java),
             ComponentName(context, MainActivity::class.java),
             conditionUri,
-            buildZenPolicy(),
+            buildZenPolicy(deadSilent),
             NotificationManager.INTERRUPTION_FILTER_PRIORITY,
             true,
         )
@@ -126,12 +127,27 @@ class ZenRuleQuietModeController @Inject constructor(
     }
 
     /**
-     * Silence notification sounds, but never touch media: music, video, and podcasts keep playing
-     * (allowMedia), and the alarm lane stays open for Shushly's own alert. Calls from anyone — plus
-     * repeat callers — always ring, and priority channels (our critical_alerts) come through, so Quiet
-     * Mode never makes you miss a phone call.
+     * The zen policy. Normal Quiet Mode silences notification sounds but never touches media (music,
+     * video, podcasts keep playing via allowMedia) and keeps the alarm lane open for Shushly's own
+     * alert; calls from anyone plus repeat callers always ring and priority channels come through, so it
+     * never makes you miss a phone call.
+     *
+     * [deadSilent] (theatre) is a total-silence override: everything is disallowed except media, so
+     * notifications, calls, alarms and system sounds are all muted while music you're already playing
+     * keeps going. The pipeline separately suppresses every Shushly re-alert in this mode, so the closed
+     * alarm lane is intentional (we never try to sound). Kept on INTERRUPTION_FILTER_PRIORITY with an
+     * all-but-media policy rather than INTERRUPTION_FILTER_NONE, which can also cut media on some devices.
      */
-    private fun buildZenPolicy(): ZenPolicy {
+    private fun buildZenPolicy(deadSilent: Boolean): ZenPolicy {
+        if (deadSilent) {
+            val b = ZenPolicy.Builder()
+                .disallowAllSounds()
+                .allowMedia(true)
+            if (Build.VERSION.SDK_INT >= 35) {
+                b.allowPriorityChannels(false)
+            }
+            return b.build()
+        }
         val builder = ZenPolicy.Builder()
             .disallowAllSounds()
             .allowAlarms(true)

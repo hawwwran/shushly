@@ -26,4 +26,9 @@ data class DecisionHistoryEntity(
     // Content-dedupe hash (salted SHA-256 of app + title + body); surfaced in the detail screen. Added
     // in schema v4; null for rows recorded before v4. Privacy-safe: a salted one-way hash, never the raw text.
     val contentHash: String? = null,
+    // DEBUG-ONLY (temporary, schema v5): the raw title/body, kept ONLY to diagnose why two seemingly
+    // identical notifications produce different content hashes. Written only in debug builds (always null
+    // in release, preserving the no-raw-text rule). Remove these two columns once dedupe hashing is sorted.
+    val debugTitle: String? = null,
+    val debugBody: String? = null,
 )

@@ -2,6 +2,7 @@ package com.hawwwran.shushly.service.listener
 
 import android.service.notification.StatusBarNotification
 import android.util.Log
+import com.hawwwran.shushly.BuildConfig
 import com.hawwwran.shushly.core.data.DecisionHistoryRepository
 import com.hawwwran.shushly.core.data.SeenAppsRepository
 import com.hawwwran.shushly.core.data.SettingsRepository
@@ -19,10 +20,10 @@ import javax.inject.Singleton
 import kotlinx.coroutines.CancellationException
 
 /**
- * The decision pipeline (spec §7.2): quiet-mode/in-use → protected-source → always-alert →
- * group-summary → eligibility → text → content-dedupe → key-dedupe → classify → threshold → sound.
- * When the AI can't classify an eligible notification it fails safe to *sound* (§3.4) — better an
- * unwanted alert than a missed-important one.
+ * The decision pipeline (spec §7.2): burst-dedupe → quiet-mode/in-use → protected-source →
+ * always-alert → group-summary → eligibility → text → content-dedupe → key-dedupe → classify →
+ * threshold → sound. When the AI can't classify an eligible notification it fails safe to *sound*
+ * (§3.4) — better an unwanted alert than a missed-important one.
  *
  * An important notification (ALERT at/above threshold) plays a sound immediately (sound-only; no
  * notification is posted). The only audible rate limit is a global anti-storm backstop (see
@@ -57,10 +58,31 @@ class NotificationPipeline @Inject constructor(
             return
         }
 
+        // Burst dedupe (spec §7.5), checked first: some apps (e.g. WhatsApp) post several identical
+        // notifications within the same instant. Collapse an exact-content repeat seen within ~1s to
+        // just the first — drop the rest with no learning, history, AI, or sound. Unlike the 60-min
+        // content dedupe further down, this window is tiny, so it is safe ahead of the always-alert and
+        // other bypass gates: a same-second identical repeat is one event double-posted, never a
+        // distinct alert worth sounding twice.
+        if (!dedupe.isFirstInBurst(e.contentHash)) {
+            Log.d(TAG, "${e.packageName}: dropping same-instant duplicate (burst)")
+            return
+        }
+
         // Learn which apps notify (feeds the picker's "Most used apps"), even while Quiet Mode is off.
         seenApps.record(e.packageName)
 
         val s = settings.snapshot()
+
+        // Dead silent (total-silence override): the zen rule already mutes everything at the OS level;
+        // here Shushly additionally re-alerts for nothing — always-alert, AI alerts and the fail-safe
+        // sound are all suppressed by returning before any of them. Checked before the Quiet-Mode-off
+        // gate because dead silent forces the rule active even when the master is off. Recorded so
+        // History still shows what was held back.
+        if (s.deadSilent) {
+            record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_DEAD_SILENT, "Dead silent — everything muted", aiCalled = false, wasAlerted = false)
+            return
+        }
 
         if (!s.smartQuietModeEnabled) {
             record(e, Decision.SKIPPED, DecisionReasonCode.SKIPPED_QUIET_MODE_OFF, "Smart Quiet Mode is off", aiCalled = false, wasAlerted = false)
@@ -183,6 +205,10 @@ class NotificationPipeline @Inject constructor(
             aiCalled = aiCalled,
             wasAlerted = wasAlerted,
             contentHash = e.contentHash,
+            // DEBUG-ONLY (temporary): keep the raw text in debug builds to diagnose dedupe hash
+            // mismatches; never stored in release (see DecisionHistoryEntity.debugTitle).
+            debugTitle = if (BuildConfig.DEBUG) e.title else null,
+            debugBody = if (BuildConfig.DEBUG) e.body else null,
         )
         // Resilient: a DB failure must never break the decision pipeline.
         runCatching { history.record(entity) }

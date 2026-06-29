@@ -106,6 +106,18 @@ fun DecisionDetailScreen(
                 e.notificationKeyHash?.let { DetailField("Source key (hash)", it) }
                 e.contentHash?.let { DetailField("Content (hash)", it, monospace = true) }
 
+                // DEBUG-ONLY (temporary): the raw title/body plus a stable per-field hash breakdown, to
+                // see why two notifications that look identical hash differently. Present only in debug
+                // builds (the columns are null in release). Remove with the debugTitle/debugBody columns.
+                if (BuildConfig.DEBUG && (e.debugTitle != null || e.debugBody != null)) {
+                    HorizontalDivider()
+                    DetailField("Debug · raw title", e.debugTitle ?: "—", monospace = true)
+                    DetailField("Debug · raw body", e.debugBody ?: "—", monospace = true)
+                    DetailField("Debug · hash app", stableFieldHash(e.packageName), monospace = true)
+                    DetailField("Debug · hash title", stableFieldHash(e.debugTitle.orEmpty()), monospace = true)
+                    DetailField("Debug · hash body", stableFieldHash(e.debugBody.orEmpty()), monospace = true)
+                }
+
                 HorizontalDivider()
                 SteeringSection(
                     steering = steeringFor(
@@ -255,7 +267,15 @@ private fun DetailField(label: String, value: String, monospace: Boolean = false
     }
 }
 
-/** Debug-only: copy the entry's already-redacted fields (no raw title/body — there is none). */
+// DEBUG-ONLY: stable (unsalted) short hash of one field, so two rows' fields can be matched across app
+// restarts (the persisted contentHash is salted per process and won't compare). Remove with the debug view.
+private fun stableFieldHash(value: String): String =
+    java.security.MessageDigest.getInstance("SHA-256")
+        .digest(value.toByteArray(Charsets.UTF_8))
+        .take(4).joinToString("") { "%02x".format(it.toInt() and 0xFF) }
+
+/** Debug-only: copy the entry's fields. In debug builds this includes the raw title/body captured to
+ *  diagnose dedupe hash mismatches (see [DecisionHistoryEntity.debugTitle]); release never stores them. */
 private fun copyTechnicalDetails(context: Context, e: DecisionHistoryEntity) {
     val text = buildString {
         appendLine("Shushly decision")
@@ -267,6 +287,10 @@ private fun copyTechnicalDetails(context: Context, e: DecisionHistoryEntity) {
         appendLine("Sounded: ${if (e.wasAlerted) "yes" else "no"}")
         appendLine("Source key (hash): ${e.notificationKeyHash ?: "—"}")
         appendLine("Content (hash): ${e.contentHash ?: "—"}")
+        if (e.debugTitle != null || e.debugBody != null) {
+            appendLine("Debug raw title: ${e.debugTitle ?: "—"}")
+            appendLine("Debug raw body: ${e.debugBody ?: "—"}")
+        }
         append("Feedback: ${e.userFeedback ?: "none"}")
     }
     context.getSystemService(ClipboardManager::class.java)

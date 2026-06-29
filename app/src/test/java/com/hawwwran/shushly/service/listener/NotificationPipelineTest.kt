@@ -177,6 +177,41 @@ class NotificationPipelineTest {
         assertEquals(0, classifier.callCount)
     }
 
+    // --- Dead silent (total-silence override) ---
+
+    @Test
+    fun deadSilent_suppressesAlwaysAlert_noSound() = runTest {
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(settings(deadSilent = true, always = setOf("com.example.app")), classifier)
+        h.pipeline.processExtracted(extracted(pkg = "com.example.app"))
+
+        assertEquals(DecisionReasonCode.SKIPPED_DEAD_SILENT.name, h.history.last?.reasonCode)
+        assertEquals(0, h.sounder.callCount)
+        assertEquals(0, classifier.callCount)
+        assertFalse(h.history.last!!.wasAlerted)
+    }
+
+    @Test
+    fun deadSilent_suppressesAiAlert_withoutCallingAi() = runTest {
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(settings(deadSilent = true), classifier)
+        h.pipeline.processExtracted(extracted())
+
+        assertEquals(DecisionReasonCode.SKIPPED_DEAD_SILENT.name, h.history.last?.reasonCode)
+        assertEquals(0, h.sounder.callCount)
+        assertEquals(0, classifier.callCount) // AI is never consulted
+    }
+
+    @Test
+    fun deadSilent_suppressesFailSafeSound() = runTest {
+        // Even the fail-safe-to-sound path is suppressed: dead silent returns before classify is attempted.
+        val h = Harness(settings(deadSilent = true), ProgrammableClassifier(error = RuntimeException("AI down")))
+        h.pipeline.processExtracted(extracted())
+
+        assertEquals(DecisionReasonCode.SKIPPED_DEAD_SILENT.name, h.history.last?.reasonCode)
+        assertEquals(0, h.sounder.callCount)
+    }
+
     @Test
     fun protectedSource_skips_withoutCallingAi() = runTest {
         val classifier = ProgrammableClassifier(alert(0.95))
@@ -255,7 +290,8 @@ class NotificationPipelineTest {
         val h = Harness(settings(), classifier)
 
         // Same app + identical title/body, re-posted under a different system key (as updates often are).
-        // Content dedupe drops the repeat before it can be recorded, classified, or sounded.
+        // Posted back-to-back here, so the burst guard collapses the repeat (the 60-min content dedupe
+        // would catch a later one); either way it never reaches history, the AI, or the sounder.
         h.pipeline.processExtracted(extracted(key = "k1"))
         h.pipeline.processExtracted(extracted(key = "k2"))
 
@@ -271,6 +307,31 @@ class NotificationPipelineTest {
         h.pipeline.processExtracted(e)
         // The persisted hash is the same value the pipeline deduped on (shown in the detail screen).
         assertEquals(e.contentHash, h.history.last?.contentHash)
+    }
+
+    @Test
+    fun recordedRow_carriesRawContentInDebugBuilds() = runTest {
+        // DEBUG-ONLY diagnostic capture: the raw title/body is persisted in debug builds (unit tests run
+        // the debug variant, so BuildConfig.DEBUG is true). Release builds leave these null.
+        val h = Harness(settings(), ProgrammableClassifier(alert(0.95)))
+        h.pipeline.processExtracted(extracted(title = "Hello", body = "World"))
+        assertEquals("Hello", h.history.last?.debugTitle)
+        assertEquals("World", h.history.last?.debugBody)
+    }
+
+    @Test
+    fun whatsAppDoublePost_appNamePrefixedTitle_collapsesToOne() = runTest {
+        // WhatsApp posts one message twice in the same instant: titled "WhatsApp: Alice" and "Alice".
+        // The app-name prefix is stripped before hashing, so the two share a content hash and the burst
+        // guard collapses them — one history row, one classify, one sound (instead of a duplicate).
+        val classifier = ProgrammableClassifier(alert(0.95))
+        val h = Harness(settings(), classifier)
+        h.pipeline.processExtracted(extracted(key = "k1", appLabel = "WhatsApp", title = "WhatsApp: Alice", body = "see you"))
+        h.pipeline.processExtracted(extracted(key = "k2", appLabel = "WhatsApp", title = "Alice", body = "see you"))
+
+        assertEquals(1, h.history.recorded.size)
+        assertEquals(1, classifier.callCount)
+        assertEquals(1, h.sounder.callCount)
     }
 
     @Test
@@ -452,6 +513,7 @@ class NotificationPipelineTest {
 
 private fun settings(
     smartQuiet: Boolean = true,
+    deadSilent: Boolean = false,
     vibrate: Boolean = true,
     eligibilityMode: EligibilityMode = EligibilityMode.ALL_APPS_EXCEPT_SELECTED,
     selected: Set<String> = emptySet(),
@@ -461,6 +523,7 @@ private fun settings(
 ): SettingsRepository = FakeSettingsRepository(
     AppSettings(
         smartQuietModeEnabled = smartQuiet,
+        deadSilent = deadSilent,
         activeWhenLocked = activeWhenLocked,
         vibrateForCriticalAlerts = vibrate,
         eligibilityMode = eligibilityMode,
@@ -482,6 +545,7 @@ private fun alert(confidence: Double): ClassificationResult = ClassificationResu
 private fun extracted(
     key: String = "key-1",
     pkg: String = "com.example.app",
+    appLabel: String = "Example",
     title: String? = "Heads up",
     body: String? = "Production deployment failed, action needed",
     category: String? = null,
@@ -490,7 +554,7 @@ private fun extracted(
 ): ExtractedNotification = ExtractedNotification(
     notificationKey = key,
     packageName = pkg,
-    appLabel = "Example",
+    appLabel = appLabel,
     postedAt = Instant.EPOCH,
     title = title,
     body = body,

@@ -20,6 +20,9 @@ class FakeSettingsRepository(var current: AppSettings = AppSettings()) : Setting
     override suspend fun setSmartQuietMode(enabled: Boolean) {
         current = current.copy(smartQuietModeEnabled = enabled)
     }
+    override suspend fun setDeadSilent(on: Boolean) {
+        current = current.copy(deadSilent = on)
+    }
     override suspend fun setActiveWhenLocked(on: Boolean) {
         current = current.copy(activeWhenLocked = on)
     }

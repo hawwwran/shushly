@@ -8,12 +8,13 @@ import javax.inject.Singleton
 
 /**
  * Desired active state of the app-owned zen rule (pure, unit-tested).
+ *  - deadSilent on → zen on always (total-silence override; wins over everything below).
  *  - master off → zen off.
  *  - master on + activeWhenLocked off → zen on always (the original behavior).
  *  - master on + activeWhenLocked on → zen on only while NOT in use (locked/away).
  */
-fun desiredZenActive(master: Boolean, activeWhenLocked: Boolean, inUse: Boolean): Boolean =
-    master && !(activeWhenLocked && inUse)
+fun desiredZenActive(master: Boolean, activeWhenLocked: Boolean, inUse: Boolean, deadSilent: Boolean): Boolean =
+    deadSilent || (master && !(activeWhenLocked && inUse))
 
 /**
  * Single source of truth for toggling Smart Quiet Mode: it drives the app-owned zen rule via
@@ -64,6 +65,16 @@ class SmartQuietModeManager @Inject constructor(
     }
 
     /**
+     * Persist Dead silent (a total-silence override) and reconcile immediately: enabling forces the zen
+     * rule active with the stricter all-but-media policy; disabling reverts to the master/lock state and
+     * the normal policy. Independent of the Smart Quiet Mode master — works even when it is off.
+     */
+    suspend fun setDeadSilent(on: Boolean) {
+        settings.setDeadSilent(on)
+        reconcile()
+    }
+
+    /**
      * Flip the zen rule to match [desiredZenActive] for the current settings + lock state. Never
      * touches the persisted master flag — that's the user's intent and stays put.
      */
@@ -72,7 +83,7 @@ class SmartQuietModeManager @Inject constructor(
         // lock state and applies the correct final zen state.
         reconcileMutex.withLock {
             val s = settings.snapshot()
-            if (desiredZenActive(s.smartQuietModeEnabled, s.activeWhenLocked, lockState.isInUse())) {
+            if (desiredZenActive(s.smartQuietModeEnabled, s.activeWhenLocked, lockState.isInUse(), s.deadSilent)) {
                 quietMode.enable()
             } else {
                 quietMode.disable()

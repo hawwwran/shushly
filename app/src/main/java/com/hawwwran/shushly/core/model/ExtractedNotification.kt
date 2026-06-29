@@ -27,12 +27,30 @@ data class ExtractedNotification(
         get() = listOfNotNull(title, body).joinToString(separator = " ").trim()
 
     /**
-     * Stable signature for content-level dedupe: app + title + body. Two notifications with the same
-     * signature are treated as the same event (an app re-posting/updating the same content). The NUL
-     * separators keep field boundaries unambiguous so distinct fields can't collide by concatenation.
+     * Stable signature for content-level dedupe: app + normalized title + body. Two notifications with
+     * the same signature are treated as the same event (an app re-posting/updating the same content).
+     * The NUL separators keep field boundaries unambiguous so distinct fields can't collide by
+     * concatenation. The title is run through [normalizedTitle] first.
      */
     val contentSignature: String
-        get() = "$packageName\u0000${title.orEmpty()}\u0000${body.orEmpty()}"
+        get() = "$packageName\u0000${normalizedTitle()}\u0000${body.orEmpty()}"
+
+    /**
+     * Title with a leading app-name prefix removed. Some apps post the same message both with and
+     * without their own name prefixed onto the title — observed: WhatsApp posts one notification titled
+     * "WhatsApp: Alice" and another titled "Alice" for a single message. Stripping a leading "[appLabel]"
+     * (plus any ": " / " - " separator) makes those collapse to one event for dedupe. The distinguishing
+     * remainder is untouched, so distinct senders ("WhatsApp: Alice" vs "WhatsApp: Bob") stay distinct.
+     */
+    private fun normalizedTitle(): String {
+        val t = title.orEmpty().trim()
+        val label = appLabel.trim()
+        return if (label.isNotEmpty() && t.startsWith(label, ignoreCase = true)) {
+            t.substring(label.length).trimStart(' ', ':', '-', '|').trim()
+        } else {
+            t
+        }
+    }
 
     /**
      * Hash of [contentSignature] — the value the pipeline dedupes on and stores on the decision-history
